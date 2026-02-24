@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.1 (2026-02-23)
+
+### Breaking Changes
+
+- `PhemexClient` and `AsyncPhemexClient` now take a `kind` parameter (`"vip"`, `"public"`, or `"test"`) instead of `base_url`
+- Removed configurable `expiry` parameter from client constructors
+
+### Added
+
+- `PhemexKind` type alias exported from `phemex_py`
+- `_BASE_URLS` module constant mapping kind to base URL
+
 ## 0.1.0 (2026-02-22)
 
 Initial release.
