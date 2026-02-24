@@ -1,6 +1,6 @@
 import logging
 
-from .client import PhemexClient, AsyncPhemexClient
+from .client import PhemexClient, AsyncPhemexClient, PhemexKind
 from .core import PhemexDecimal, PhemexModel
 from .exceptions import PhemexError
 
@@ -11,6 +11,7 @@ __version__ = "0.1.0"
 __all__ = [
     "PhemexDecimal",
     "PhemexModel",
+    "PhemexKind",
     "PhemexClient",
     "AsyncPhemexClient",
     "PhemexError"]

@@ -21,15 +21,23 @@ pip install phemex-py
 ### Authentication
 
 You need a Phemex API key and secret. Create one from
-your [Phemex account settings](https://phemex.com/account/apiKeys).
+your [Phemex account settings](https://phemex.com/help-center/how-do-i-create-an-api-key).
 
-Set them as environment variables or pass them directly:
+Setting them as environment variables is a tried and true method: 
 
 ```dotenv
-PHEMEX_URL=https://testnet-api.phemex.com
+PHEMEX_KIND=test
 PHEMEX_KEY=
 PHEMEX_SECRET=
 ```
+
+The `kind` parameter controls which Phemex environment to connect to:
+
+| Kind     | URL                              |
+|----------|----------------------------------|
+| `vip`    | `https://vapi.phemex.com`        |
+| `public` | `https://api.phemex.com`         |
+| `test`   | `https://testnet-api.phemex.com` |
 
 ### Sync Client
 
@@ -37,7 +45,7 @@ PHEMEX_SECRET=
 from phemex_py import PhemexClient
 
 with PhemexClient(
-        base_url="https://api.phemex.com",
+        kind="public",
         api_key="your-api-key",
         api_secret="your-api-secret",
 ) as client:
@@ -66,7 +74,7 @@ from phemex_py import AsyncPhemexClient
 
 async def main():
     async with AsyncPhemexClient(
-            base_url="https://api.phemex.com",
+            kind="public",
             api_key="your-api-key",
             api_secret="your-api-secret",
     ) as client:
@@ -79,11 +87,11 @@ asyncio.run(main())
 
 ### Testnet
 
-Use the testnet base URL for paper trading:
+Use `kind="test"` for paper trading:
 
 ```python
 client = PhemexClient(
-    base_url="https://testnet-api.phemex.com",
+    kind="test",
     api_key="your-testnet-key",
     api_secret="your-testnet-secret",
 )

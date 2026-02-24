@@ -2,6 +2,7 @@ import hmac
 import hashlib
 import logging
 import time
+from typing import Literal
 
 import httpx
 
@@ -15,17 +16,24 @@ logger = logging.getLogger(__name__)
 _SENSITIVE_HEADERS = {"x-phemex-access-token", "x-phemex-request-signature"}
 _EXPIRY = 60  # default expiry time in seconds for request signatures
 
+PhemexKind = Literal["vip", "public", "test"]
+
+_BASE_URLS: dict[str, str] = {
+    "vip": "https://vapi.phemex.com",
+    "public": "https://api.phemex.com",
+    "test": "https://testnet-api.phemex.com",
+}
+
 
 class BasePhemexClient:
     """
     Shared state and request preparation for sync and async Phemex clients.
     """
 
-    def __init__(self, base_url: str, api_key: str, api_secret: str, expiry: int = _EXPIRY):
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, kind: PhemexKind, api_key: str, api_secret: str):
+        self.base_url = _BASE_URLS[kind]
         self.api_key = api_key
         self.api_secret = api_secret.encode()
-        self.expiry = expiry
 
     def _prepare(self, req: Request) -> tuple[str, dict, bytes | None]:
         """
@@ -36,7 +44,7 @@ class BasePhemexClient:
         query = req.build_query_string()
         body_json = req.build_body_json()
 
-        expires = int(time.time()) + self.expiry
+        expires = int(time.time()) + _EXPIRY
         parts = [req.path]
         if query:
             parts.append(query)
@@ -109,8 +117,8 @@ class PhemexClient(BasePhemexClient):
     Sync client for Phemex API (https://phemex-docs.github.io/). Built using httpx.Client.
     """
 
-    def __init__(self, base_url: str, api_key: str, api_secret: str, expiry: int = 60):
-        super().__init__(base_url, api_key, api_secret, expiry)
+    def __init__(self, kind: PhemexKind, api_key: str, api_secret: str):
+        super().__init__(kind, api_key, api_secret)
         self.session = httpx.Client()
         self.usdm_rest = USDMRest(self)
 
@@ -155,8 +163,8 @@ class AsyncPhemexClient(BasePhemexClient):
     Async client for Phemex API (https://phemex-docs.github.io/). Built using httpx.AsyncClient.
     """
 
-    def __init__(self, base_url: str, api_key: str, api_secret: str, expiry: int = 60):
-        super().__init__(base_url, api_key, api_secret, expiry)
+    def __init__(self, kind: PhemexKind, api_key: str, api_secret: str):
+        super().__init__(kind, api_key, api_secret)
         self.session = httpx.AsyncClient()
         self.usdm_rest = AsyncUSDMRest(self)
 

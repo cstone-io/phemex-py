@@ -17,14 +17,14 @@ def pytest_collection_modifyitems(config, items):
 @pytest.fixture(scope="session")
 def client():
     """Real phemex connected to Phemex testnet."""
-    api_url = os.getenv("PHEMEX_URL")
+    kind = os.getenv("PHEMEX_KIND", "test")
     api_key = os.getenv("PHEMEX_KEY")
     api_secret = os.getenv("PHEMEX_SECRET")
 
     if not api_key or not api_secret:
         pytest.skip("PHEMEX_KEY and PHEMEX_SECRET must be set in environment")
 
-    client = PhemexClient(base_url=api_url, api_key=api_key, api_secret=api_secret)
+    client = PhemexClient(kind=kind, api_key=api_key, api_secret=api_secret)
     yield client
     client.close()
 
@@ -32,14 +32,14 @@ def client():
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def async_client():
     """Real async phemex connected to Phemex testnet."""
-    api_url = os.getenv("PHEMEX_URL")
+    kind = os.getenv("PHEMEX_KIND", "test")
     api_key = os.getenv("PHEMEX_KEY")
     api_secret = os.getenv("PHEMEX_SECRET")
 
     if not api_key or not api_secret:
         pytest.skip("PHEMEX_KEY and PHEMEX_SECRET must be set in environment")
 
-    client = AsyncPhemexClient(base_url=api_url, api_key=api_key, api_secret=api_secret)
+    client = AsyncPhemexClient(kind=kind, api_key=api_key, api_secret=api_secret)
     yield client
     await client.close()
 
