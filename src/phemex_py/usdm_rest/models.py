@@ -1,11 +1,11 @@
 from abc import ABC
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, ClassVar, Literal, Self
 
-from pydantic import field_validator, model_validator
+from pydantic import ConfigDict, field_validator, model_validator
 
 from ..core.datetime import unix_now, MS
 from ..exceptions import ValidationError
-from ..core.models import PhemexModel, PhemexDecimal, PhemexDecimalLike
+from ..core.models import PhemexModel, PhemexRequest, PhemexResponse, PhemexDecimal, PhemexDecimalLike
 from ..core import fields as f
 
 
@@ -13,7 +13,7 @@ from ..core import fields as f
 # Product related models
 # --------------------------------------
 
-class Currency(PhemexModel):
+class Currency(PhemexResponse):
     currency: Annotated[str, *f.Currency("currency")]
     display_currency: Annotated[str, *f.Currency.Display("displayCurrency")]
 
@@ -32,7 +32,7 @@ class Currency(PhemexModel):
     stable_coin: Annotated[int, *f.Currency.StableCoinFlag("stableCoin")]
 
 
-class ProductCore(PhemexModel, ABC):
+class ProductCore(PhemexResponse, ABC):
     symbol: Annotated[str, *f.Symbol("symbol")]
     display_symbol: Annotated[str, *f.Symbol.Display("displaySymbol")]
     base_currency: Annotated[str, *f.Currency.Base("baseCurrency")]
@@ -109,7 +109,7 @@ class PerpetualV2(PerpetualCore):
     max_open_leverage: Annotated[PhemexDecimal, *f.ProductLeverage.MaxOpen("maxOpenPosLeverage")]
 
 
-class ProductRiskLimits(PhemexModel):
+class ProductRiskLimits(PhemexResponse):
     limit: Annotated[int, *f.ProductRisk.MaxRiskLimit("limit")]
     initial_margin: Annotated[PhemexDecimal, *f.ProductRisk.InitialMargin("initialMarginEr", scaled=True)]
     initial_margin_alt: Annotated[str, *f.ProductRisk.InitialMargin("initialMargin", alt=True)]
@@ -117,48 +117,48 @@ class ProductRiskLimits(PhemexModel):
     maintenance_margin_alt: Annotated[str, *f.ProductRisk.MaintenanceMargin("maintenanceMargin", alt=True)]
 
 
-class ProductRisk(PhemexModel):
+class ProductRisk(PhemexResponse):
     symbol: Annotated[str, *f.Symbol("symbol")]
     steps: Annotated[str, *f.ProductRisk.RiskSteps("steps")]
     risk_limits: Annotated[list[ProductRiskLimits], f.NestedModel("riskLimits")]
 
 
-class ProductLeverage(PhemexModel):
+class ProductLeverage(PhemexResponse):
     initial_margin: Annotated[PhemexDecimal, *f.ProductRisk.InitialMargin("initialMarginEr", scaled=True)]
     initial_margin_alt: Annotated[str, *f.ProductRisk.InitialMargin("initialMargin", alt=True)]
     options: Annotated[list[int | float], *f.ProductLeverage.Options("options")]
 
 
-class ProductRiskLimitsV2(PhemexModel):
+class ProductRiskLimitsV2(PhemexResponse):
     limit: Annotated[PhemexDecimal, *f.ProductRisk.MaxRiskLimit("limit")]
     initial_margin: Annotated[PhemexDecimal, *f.ProductRisk.InitialMargin("initialMarginRr")]
     maintenance_margin: Annotated[PhemexDecimal, *f.ProductRisk.MaintenanceMargin("maintenanceMarginRr")]
 
 
-class ProductRiskV2(PhemexModel):
+class ProductRiskV2(PhemexResponse):
     symbol: Annotated[str, *f.Symbol("symbol")]
     steps: Annotated[str, *f.ProductRisk.RiskSteps("steps")]
     risk_limits: Annotated[list[ProductRiskLimits], f.NestedModel("riskLimits")]
 
 
-class ProductLeverageV2(PhemexModel):
+class ProductLeverageV2(PhemexResponse):
     options: Annotated[list[int | float], *f.ProductLeverage.Options("options")]
     initial_margin: Annotated[PhemexDecimal, *f.ProductRisk.InitialMargin("initialMarginRr")]
 
 
-class LeverageMarginItem(PhemexModel):
+class LeverageMarginItem(PhemexResponse):
     value: Annotated[PhemexDecimal, *f.ProductRisk.NotionalValue("notionalValueRv")]
     max_leverage: Annotated[PhemexDecimal, *f.ProductLeverage.Max("maxLeverage")]
     maintenance_margin: Annotated[PhemexDecimal, *f.ProductRisk.MaintenanceMargin("maintenanceMarginRateRr")]
     maintenance_amount: Annotated[PhemexDecimal, *f.ProductRisk.MaintenanceAmount("maintenanceAmountRv")]
 
 
-class LeverageMargin(PhemexModel):
+class LeverageMargin(PhemexResponse):
     index: Annotated[int, *f.ProductRisk.IndexID("index")]
     items: Annotated[list[LeverageMarginItem], f.NestedModel("items")]
 
 
-class ProductResponse(PhemexModel):
+class ProductResponse(PhemexResponse):
     currencies: Annotated[list[Currency], f.NestedModel("currencies")]
     products: Annotated[list[Spot | PerpetualV1], f.NestedModel("products")]
     products_risk: Annotated[list[ProductRisk], f.NestedModel("riskLimits")]
@@ -177,7 +177,7 @@ class ProductResponse(PhemexModel):
 # Order related models
 # --------------------------------------
 
-class OrderCore(PhemexModel):
+class OrderCore(PhemexRequest):
     client_id: Annotated[str | None, *f.Order.ClientID("clOrdID")] = None
     order_type: Annotated[str | None, *f.Order.OrderType("orderType")] = None
     symbol: Annotated[str | None, *f.Symbol("symbol")] = None
@@ -203,6 +203,8 @@ class OrderResponse(OrderCore):
     """
     Many order endpoints share this output model i.e. place order, amend order, get order
     """
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
+
     order_id: Annotated[str | None, *f.Order.ID("orderID")] = None
     error: Annotated[int | None, *f.ErrorCode("bizError")] = None
 
@@ -226,6 +228,8 @@ class OrderResponse(OrderCore):
 
 
 class OpenOrder(OrderCore):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
+
     order_id: Annotated[str, *f.Order.ID("orderID")]
     client_id: Annotated[str | None, *f.Order.ClientID("clOrdID")] = None
     error: Annotated[int, *f.ErrorCode("bizError")]
@@ -317,6 +321,11 @@ class OrderBuilder:
         })
         return self
 
+    def client_order_id(self, id: str) -> Self:
+        """Set the client order ID (clOrdID) for idempotency."""
+        self._data["client_id"] = id
+        return self
+
     def tif(self, value: str) -> Self:
         """
         Default behavior is GoodTillCancel. Override with this method.
@@ -399,7 +408,7 @@ class PlaceOrderRequest(OrderCore):
         return self
 
 
-class AmendOrderRequest(PhemexModel):
+class AmendOrderRequest(PhemexRequest):
     order_id: Annotated[str | None, *f.Order.ID("orderID")] = None
     client_id: Annotated[str | None, *f.Order.ClientID("clOrdID")] = None
     pos_side: Annotated[str, *f.Position.Side("posSide")]
@@ -439,7 +448,7 @@ class AmendOrderRequest(PhemexModel):
         return self
 
 
-class CancelOrderRequest(PhemexModel):
+class CancelOrderRequest(PhemexRequest):
     order_id: Annotated[str | None, *f.Order.ID("orderID")] = None
     client_id: Annotated[str | None, *f.Order.ClientID("clOrdID")] = None
     symbol: Annotated[str, *f.Symbol("symbol")]
@@ -463,7 +472,7 @@ class CancelOrderRequest(PhemexModel):
         )
 
 
-class BulkCancelOrderRequest(PhemexModel):
+class BulkCancelOrderRequest(PhemexRequest):
     order_ids: Annotated[list[str] | None, *f.Order.ID("orderID")] = None
     client_ids: Annotated[list[str] | None, *f.Order.ClientID("clOrdID")] = None
     symbol: Annotated[str, *f.Symbol("symbol")]
@@ -487,15 +496,24 @@ class BulkCancelOrderRequest(PhemexModel):
         )
 
 
-class CancelAllOrdersRequest(PhemexModel):
+class CancelAllOrdersRequest(PhemexRequest):
     symbol: Annotated[str | None, *f.Symbol("symbol")] = None
     untriggered: Annotated[bool | None, *f.Request.Untriggered("untriggered")] = None
     text: Annotated[str | None, *f.Request.Text("text")] = None
 
+    @field_validator("symbol", mode="before")
     @classmethod
-    def make(cls, symbol: str, untriggered: bool = True):
+    def _normalize_symbol(cls, v):
+        """Accept a list of symbols and normalize to comma-separated string."""
+        if isinstance(v, list):
+            return ",".join(v)
+        return v
+
+    @classmethod
+    def make(cls, symbol: list[str] | str | None = None, untriggered: bool = True):
         """
-        Helper to create a CancelAllOrdersRequest from a symbol.
+        Helper to create a CancelAllOrdersRequest.
+        symbol can be a single string, list of strings, or None (cancel all).
         Untriggered = False to cancel all orders including triggered ones.
         """
         return cls(
@@ -504,7 +522,7 @@ class CancelAllOrdersRequest(PhemexModel):
         )
 
 
-class ClosedOrdersRequest(PhemexModel):
+class ClosedOrdersRequest(PhemexRequest):
     symbol: Annotated[str | None, *f.Symbol("symbol")] = None
     currency: Annotated[str, *f.Currency("currency")]
     order_status: Annotated[int | None, *f.OrderCode.Status("ordStatus")] = None
@@ -527,7 +545,7 @@ class ClosedOrdersRequest(PhemexModel):
         )
 
 
-class ClosedOrder(PhemexModel):
+class ClosedOrder(PhemexResponse):
     order_id: Annotated[str, *f.Order.ID("orderId")]
     client_id: Annotated[str, *f.Order.ClientID("clOrdId")]
     created_at: Annotated[int, *f.Time.CreatedAt("createdAt")]
@@ -567,7 +585,7 @@ class ClosedOrder(PhemexModel):
     total_pnl: Annotated[PhemexDecimal | None, *f.PNL.Total("totalPnlRv")] = None
 
 
-class OrderHistoryItem(PhemexModel):
+class OrderHistoryItem(PhemexResponse):
     order_id: Annotated[str, *f.Order.ID("orderId")]
     client_id: Annotated[str, *f.Order.ClientID("clOrdId")]
     status: Annotated[str, *f.Order.Status("ordStatus")]
@@ -601,7 +619,7 @@ class OrderHistoryItem(PhemexModel):
 # --------------------------------------
 
 
-class Account(PhemexModel):
+class Account(PhemexResponse):
     account_id: Annotated[int, *f.Account.ID("accountId")]
     user_id: Annotated[int, *f.User.ID("userID")]
     user_mode: Annotated[int | None, *f.User.Mode("userMode")] = None
@@ -617,7 +635,7 @@ class Account(PhemexModel):
         return self.total_balance - self.used_balance
 
 
-class PositionCore(PhemexModel, ABC):
+class PositionCore(PhemexResponse, ABC):
     account_id: Annotated[int, *f.Account.ID("accountID")]
     exec_seq: Annotated[int, *f.Position.ExecutionSequence("execSeq")]
     status: Annotated[str, *f.Position.Status("positionStatus")]
@@ -661,6 +679,37 @@ class PositionCore(PhemexModel, ABC):
     cum_funding_fee: Annotated[PhemexDecimal, *f.PositionFee.CumulativeFunding("cumFundingFeeRv")]
     cum_trans_fee: Annotated[PhemexDecimal, *f.PositionFee.CumulativeTransaction("cumTransactFeeRv")]
 
+    @property
+    def position_mode(self) -> str:
+        """Position mode: 'OneWay' or 'Hedged' (semantic alias for pos_mode)."""
+        return self.pos_mode
+
+    @property
+    def margin_mode(self) -> str:
+        """'Cross' or 'Isolated', derived from leverage sign convention.
+
+        Phemex encodes margin mode in the leverage sign:
+          - leverage <= 0 → Cross margin
+          - leverage > 0  → Isolated margin
+        """
+        return "Cross" if self.leverage_ratio <= 0 else "Isolated"
+
+    @property
+    def effective_leverage(self) -> PhemexDecimal:
+        """Absolute leverage value (always positive). 0 means max leverage in cross mode."""
+        return abs(self.leverage_ratio)
+
+    @property
+    def initial_margin_rate(self) -> PhemexDecimal | None:
+        """1 / abs(leverage), or None if leverage is 0 (max cross).
+
+        Represents the fraction of position value required as initial margin.
+        """
+        lev = abs(self.leverage_ratio)
+        if lev == 0:
+            return None
+        return PhemexDecimal(1) / lev
+
 
 class Position(PositionCore):
     user_id: Annotated[int, *f.User.ID("userID")]
@@ -677,8 +726,15 @@ class Position(PositionCore):
     maker_fee: Annotated[PhemexDecimal, *f.PositionFee.Maker("makerFeeRateRr")]
     taker_fee: Annotated[PhemexDecimal, *f.PositionFee.Taker("takerFeeRateRr")]
 
+    @property
+    def signed_size(self) -> PhemexDecimal:
+        """Negative for Short positions, positive for Long."""
+        if self.pos_side == "Short":
+            return -abs(self.size)
+        return abs(self.size)
 
-class PositionResponse(PhemexModel):
+
+class PositionResponse(PhemexResponse):
     account: Annotated[Account, f.NestedModel("account")]
     positions: Annotated[list[Position], f.NestedModel("positions")]
 
@@ -696,6 +752,13 @@ class PositionWithPnL(PositionCore):
         PhemexDecimal | None, *f.PositionLoss.Unrealized("unRealisedPosLossEv", scaled=True)] = None
 
     @property
+    def signed_size(self) -> PhemexDecimal:
+        """Negative for Short positions, positive for Long."""
+        if self.pos_side == "Short":
+            return -abs(self.size)
+        return abs(self.size)
+
+    @property
     def equity(self) -> PhemexDecimal:
         """
         Equity of this position = margin + unrealized PnL.
@@ -704,7 +767,7 @@ class PositionWithPnL(PositionCore):
         return self.margin + self.unrealized_pnl
 
 
-class PositionWithPnLResponse(PhemexModel):
+class PositionWithPnLResponse(PhemexResponse):
     account: Annotated[Account, f.NestedModel("account")]
     positions: Annotated[list[PositionWithPnL], f.NestedModel("positions")]
 
@@ -736,7 +799,7 @@ class PositionWithPnLResponse(PhemexModel):
         return self.account.balance
 
 
-class ClosedPositionRequest(PhemexModel):
+class ClosedPositionRequest(PhemexRequest):
     symbol: Annotated[str | None, *f.Symbol("symbol")] = None
     currency: Annotated[str | None, *f.Currency("currency")] = None
     offset: Annotated[int, *f.Request.Offset("offset")] = None
@@ -754,7 +817,7 @@ class ClosedPositionRequest(PhemexModel):
         )
 
 
-class ClosedPosition(PhemexModel):
+class ClosedPosition(PhemexResponse):
     symbol: Annotated[str, *f.Symbol("symbol")]
     currency: Annotated[str, *f.Currency("currency")]
     side: Annotated[int, *f.OrderCode.Side("side")]
@@ -780,20 +843,68 @@ class ClosedPosition(PhemexModel):
 # --------------------------------------
 # Risk related models
 # --------------------------------------
+#
+# Phemex leverage sign convention (applies to leverage_ratio on positions
+# and leverage values in SetLeverageRequest):
+#   - leverage > 0  → Isolated margin mode, value is the leverage multiplier
+#   - leverage < 0  → Cross margin mode, abs(value) is the leverage multiplier
+#   - leverage == 0  → Cross margin mode with max available leverage
+#   - initialMarginRate = 1 / abs(leverage)
+#
+# Use PositionCore.margin_mode, .effective_leverage, and .initial_margin_rate
+# properties for convenient access. Use SetLeverageRequest.with_margin_mode()
+# to avoid manual sign handling when setting leverage.
 
 
-class SwitchModeRequest(PhemexModel):
+class SwitchModeRequest(PhemexRequest):
     symbol: Annotated[str, *f.Symbol("symbol")]
     mode: Annotated[str, *f.Position.Mode("targetPosMode")]
 
+    @classmethod
+    def make(cls, symbol: str, mode: Literal["OneWay", "Hedged"]) -> Self:
+        """Create a switch mode request with validated mode value."""
+        return cls(symbol=symbol, mode=mode)
 
-class AssignPositionBalanceRequest(PhemexModel):
+
+class AssignPositionBalanceRequest(PhemexRequest):
+    """Request to assign margin balance to a specific position.
+
+    NOTE: This only works in Isolated margin mode. In Cross margin mode,
+    margin is shared across all positions and cannot be assigned individually.
+    Use AssignPositionBalanceRequest.make() for automatic validation.
+    """
     symbol: Annotated[str, *f.Symbol("symbol")]
     side: Annotated[str, *f.Position.Side("posSide")]
     amount: Annotated[PhemexDecimal, *f.PositionBalance.Assigned("posBalanceRv")]
 
+    @classmethod
+    def make(cls, position: "PositionCore", amount: PhemexDecimalLike) -> Self:
+        """Create a balance assignment request from a position.
 
-class SetLeverageRequest(PhemexModel):
+        Validates that the position is in Isolated margin mode — assigning
+        balance is not supported in Cross margin mode.
+
+        :raises ValidationError: If position is in Cross margin mode.
+        """
+        if position.margin_mode != "Isolated":
+            raise ValidationError(
+                message="Cannot assign position balance in Cross margin mode. "
+                        "Switch to Isolated margin mode first.",
+            )
+        return cls(symbol=position.symbol, side=position.pos_side, amount=PhemexDecimal(amount))
+
+
+class SetLeverageRequest(PhemexRequest):
+    """Set leverage for a symbol.
+
+    Phemex leverage sign convention:
+      - Positive leverage → Isolated margin mode
+      - Negative leverage → Cross margin mode
+      - Zero leverage     → Max leverage in Cross mode
+
+    Use with_margin_mode() to avoid manual sign handling.
+    """
+
     symbol: Annotated[str, *f.Symbol("symbol")]
     one_way: Annotated[PhemexDecimal | None, *f.PositionLeverage.Leverage("leverageRr")] = None
     long: Annotated[PhemexDecimal | None, *f.PositionLeverage.LongLeverage("longLeverageRr")] = None
@@ -808,6 +919,31 @@ class SetLeverageRequest(PhemexModel):
             short=PhemexDecimal(leverage),
         ))
 
+    @classmethod
+    def with_margin_mode(
+        cls,
+        symbol: str,
+        leverage: PhemexDecimalLike,
+        margin_mode: Literal["Cross", "Isolated"],
+        *,
+        hedged: bool = True,
+    ) -> Self:
+        """Create a leverage request with explicit margin mode.
+
+        Applies Phemex sign convention automatically:
+          - Cross:    leverage is negated (or 0 for max)
+          - Isolated: leverage stays positive
+        """
+        lev = PhemexDecimal(leverage)
+        if margin_mode == "Cross":
+            lev = -abs(lev)
+        else:
+            lev = abs(lev)
+
+        if hedged:
+            return cls.model_validate(dict(symbol=symbol, long=lev, short=lev))
+        return cls.model_validate(dict(symbol=symbol, one_way=lev))
+
     @model_validator(mode="after")
     def validate_leverage_fields(self):
         if self.one_way:  # OneWay mode: cannot use long/short self
@@ -816,7 +952,7 @@ class SetLeverageRequest(PhemexModel):
                     message="Provide either One-Way Leverage OR both Long Leverage and Short Leverage, not both")
         else:  # Hedged mode: both long and short must exist together
             long = self.long is not None
-            short = self.long is not None
+            short = self.short is not None
             if long != short:
                 raise ValidationError(message="Both Long Leverage and Short Leverage must be provided in Hedged mode")
             if not (long and short):
@@ -824,7 +960,7 @@ class SetLeverageRequest(PhemexModel):
         return self
 
 
-class RiskUnitResponse(PhemexModel):
+class RiskUnitResponse(PhemexResponse):
     user_id: Annotated[int, *f.User.ID("userId")]
     symbol: Annotated[str, *f.Symbol("symbol")]
     currency_code: Annotated[int, *f.Product.Code("valuationCcy")]
@@ -850,12 +986,12 @@ class RiskUnitResponse(PhemexModel):
 # --------------------------------------
 
 
-class OrderBookEntry(PhemexModel):
+class OrderBookEntry(PhemexResponse):
     price: Annotated[PhemexDecimal, *f.Order.Price("priceRp")]
     size: Annotated[PhemexDecimal, *f.Position.Size("sizeRp")]
 
 
-class OrderBookData(PhemexModel):
+class OrderBookData(PhemexResponse):
     asks: Annotated[list[OrderBookEntry], f.NestedModel("asks")]
     bids: Annotated[list[OrderBookEntry], f.NestedModel("bids")]
 
@@ -868,7 +1004,7 @@ class OrderBookData(PhemexModel):
         return v
 
 
-class OrderBookResponse(PhemexModel):
+class OrderBookResponse(PhemexResponse):
     orderbook: Annotated["OrderBookData", f.NestedModel("orderbook_p")]
 
     symbol: Annotated[str, *f.Symbol("symbol")]
@@ -880,13 +1016,13 @@ class OrderBookResponse(PhemexModel):
     match_ts: Annotated[int, *f.Time.Match("mts")]
 
 
-class KlineRequest(PhemexModel):
+class KlineRequest(PhemexRequest):
     symbol: Annotated[str, *f.Symbol("symbol")]
     resolution: Annotated[int, *f.Request.Resolution("resolution")]
     limit: Annotated[int | None, *f.Request.Limit("limit")] = None
 
 
-class Kline(PhemexModel):
+class Kline(PhemexResponse):
     timestamp: Annotated[int, *f.Time.Timestamp("timestamp")]
     last_close: Annotated[PhemexDecimal, *f.Price.Close("closePrice")]
     open: Annotated[PhemexDecimal, *f.Price.Open("openRp")]
@@ -914,7 +1050,7 @@ class Kline(PhemexModel):
         raise ValueError("Wrong input passed to build klines")
 
 
-class Ticker(PhemexModel):
+class Ticker(PhemexResponse):
     symbol: Annotated[str, *f.Symbol("symbol")]
     timestamp: Annotated[int, *f.Time.Timestamp("timestamp")]
 
@@ -944,14 +1080,14 @@ class Ticker(PhemexModel):
 # Trade related models
 # --------------------------------------
 
-class Trade(PhemexModel):
+class Trade(PhemexResponse):
     timestamp: Annotated[int, *f.Time.Timestamp("timestamp")]
     side: Annotated[str, *f.Order.Side("side")]
     price: Annotated[PhemexDecimal, *f.Order.Price("priceRp")]
     size: Annotated[PhemexDecimal, *f.Position.Size("sizeRq")]
 
 
-class TradeResponse(PhemexModel):
+class TradeResponse(PhemexResponse):
     trades: Annotated[list[Trade], f.NestedModel("trades_p")]
 
     symbol: Annotated[str, *f.Symbol("symbol")]
@@ -969,14 +1105,14 @@ class TradeResponse(PhemexModel):
         return v
 
 
-class TradeRequestCore(PhemexModel, ABC):
+class TradeRequestCore(PhemexRequest, ABC):
     symbol: Annotated[str | None, *f.Symbol("symbol")] = None
     currency: Annotated[str | None, *f.Currency("currency")] = None
     offset: Annotated[int | None, *f.Request.Offset("offset")] = None
     limit: Annotated[int | None, *f.Request.Limit("limit")] = None
 
 
-class TradeResponseCore(PhemexModel, ABC):
+class TradeResponseCore(PhemexResponse, ABC):
     symbol: Annotated[str, *f.Symbol("symbol")]
     currency: Annotated[str, *f.Currency("currency")]
     quantity: Annotated[PhemexDecimal, *f.Order.Quantity("orderQtyRq")]
@@ -1056,13 +1192,13 @@ class TradeHistoryItem(TradeResponseCore):
 # --------------------------------------
 
 
-class FundingFeeRequest(PhemexModel):
+class FundingFeeRequest(PhemexRequest):
     symbol: Annotated[str, *f.Symbol("symbol")]
     offset: Annotated[int | None, *f.Request.Offset("offset")] = None
     limit: Annotated[int | None, *f.Request.Limit("limit")] = None
 
 
-class FundingFeeItem(PhemexModel):
+class FundingFeeItem(PhemexResponse):
     symbol: Annotated[str, *f.Symbol("symbol")]
     currency: Annotated[str, *f.Currency("currency")]
     side: Annotated[str, *f.Order.Side("side")]
@@ -1077,7 +1213,7 @@ class FundingFeeItem(PhemexModel):
     fee_rate: Annotated[PhemexDecimal, *f.Funding.FeeRate("feeRateRr")]
 
 
-class FundingRateRequest(PhemexModel):
+class FundingRateRequest(PhemexRequest):
     symbol: Annotated[str | None, *f.Symbol("symbol")] = None
     order_by_column: Annotated[str | None, *f.Request.OrderBy("orderByColumn")] = None
     order_by: Annotated[str | None, *f.Request.Order("orderBy")] = None
@@ -1085,7 +1221,7 @@ class FundingRateRequest(PhemexModel):
     page_size: Annotated[int | None, *f.Request.PageSize("pageSize")] = None
 
 
-class FundingRateItem(PhemexModel):
+class FundingRateItem(PhemexResponse):
     symbol: Annotated[str, *f.Symbol("symbol")]
 
     funding_interval: Annotated[int, *f.Funding.Interval("fundingInterval")]

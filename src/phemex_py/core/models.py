@@ -250,10 +250,14 @@ class PhemexModel(BaseModel):
     our PhemexDecimal model. This automatically handles serialization and deserialization (validation in pydantic terms)
     by scaling values dynamically based on the product's configuration. Meant to be used in strict conjunction with the
     Phemex API only.
+
+    Uses extra="ignore" as the safe default so new API fields don't break deserialization.
+    Subclass PhemexRequest for extra="forbid" (catches user mistakes) or
+    PhemexResponse for extra="ignore" (tolerates new API fields).
     """
     __products__ = get_products()
     model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid",
+        extra="ignore",
         frozen=True,
         strict=True,
         serialize_by_alias=True,
@@ -349,3 +353,13 @@ class PhemexModel(BaseModel):
         logger.debug(f"Serialization instructions: {info}")
         logger.debug(f"Final serialized output: {out}")
         return out
+
+
+class PhemexRequest(PhemexModel):
+    """Request models use extra='forbid' to catch user mistakes at construction time."""
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+
+class PhemexResponse(PhemexModel):
+    """Response models use extra='ignore' to tolerate new fields from the exchange."""
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")

@@ -81,9 +81,10 @@ class TestPhemexModel:
         assert "comment" in dumped
         assert dumped["comment"] is None
 
-    def test_extra_fields_forbidden(self):
+    def test_base_model_ignores_extra_fields(self):
         class Dummy(core.PhemexModel):
             pass
 
-        with pytest.raises(Exception):
-            Dummy(foo="bar")  # type: ignore
+        # PhemexModel uses extra="ignore" — extra fields are silently dropped
+        d = Dummy(foo="bar")  # type: ignore
+        assert not hasattr(d, "foo")

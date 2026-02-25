@@ -1,3 +1,4 @@
+import logging
 from typing import TYPE_CHECKING
 from typing_extensions import deprecated
 
@@ -6,6 +7,8 @@ from .models import *
 
 if TYPE_CHECKING:
     from ..client import PhemexClient, AsyncPhemexClient
+
+logger = logging.getLogger(__name__)
 
 
 class USDMRest:
@@ -93,21 +96,31 @@ class USDMRest:
         data = Extractor(resp).data()
         return [OrderResponse.model_validate(item) for item in data]
 
-    def cancel_all(self, symbol: str) -> None:
+    def cancel_all(
+        self,
+        symbol: list[str] | str | None = None,
+        *,
+        include_triggered: bool = True,
+    ) -> None:
         """
         Cancel all orders for hedge supported symbols. For details, see:
         https://phemex-docs.github.io/#cancel-all-orders-2
 
-        NOTE: this method cancels all orders for a given symbol, triggered and
-        untriggered by invoking this endpoint twice.
+        :param symbol: Single symbol, list of symbols, or None to cancel all.
+        :param include_triggered: If True (default), also cancel triggered orders
+            via a second API call.
         """
+        if symbol is None:
+            logger.warning("cancel_all called without symbol — this will cancel ALL orders")
+
         untriggered = CancelAllOrdersRequest.make(symbol=symbol, untriggered=True)
         req_1 = Request.delete("/g-orders/all", params=untriggered)
         self.client.request(req_1)
 
-        triggered = CancelAllOrdersRequest.make(symbol=symbol, untriggered=False)
-        req_2 = Request.delete("/g-orders/all", params=triggered)
-        self.client.request(req_2)
+        if include_triggered:
+            triggered = CancelAllOrdersRequest.make(symbol=symbol, untriggered=False)
+            req_2 = Request.delete("/g-orders/all", params=triggered)
+            self.client.request(req_2)
 
     def positions(self, currency: str = "USDT") -> PositionResponse:
         """
@@ -139,10 +152,10 @@ class USDMRest:
         NOTE: the official docs do not provide any description for this endpoint.
         Below is a working interpretation:
 
-        The “risk unit” API gives you a “risk‐unit balance / usage view” of
+        The "risk unit" API gives you a "risk-unit balance / usage view" of
         your account from the perspective of margin / leverage constraints.This
-        is analogous to “account margin usage summary” in other derivatives
-        APIs, but Phemex’s term is “risk unit.”
+        is analogous to "account margin usage summary" in other derivatives
+        APIs, but Phemex's term is "risk unit."
         """
         req = Request.get("/g-accounts/risk-unit")
         resp = self.client.request(req)
@@ -184,17 +197,15 @@ class USDMRest:
 
     def assign_position_balance(self, request: AssignPositionBalanceRequest) -> None:
         """
-        Assign position balance between USDT and USD. For details, see:
+        Assign margin balance to a specific position. For details, see:
         https://phemex-docs.github.io/#assign-position-balance
 
-        NOTE: the official docs do not provide any description for this endpoint.
-        Below is a working interpretation:
+        This adjusts how much margin capital is allocated to a specific position,
+        allowing you to reduce liquidation risk or control capital usage.
 
-        Most likely a mechanism to adjust how much “balance” (i.e. margin capital)
-        is allocated to a specific position. In many margin / derivatives systems
-        (especially when using isolated margin or adjustable margin modes), you
-        can tune how much margin is assigned to a specific position so as to
-        reduce liquidation risk or control capital usage.
+        NOTE: Only works in Isolated margin mode. In Cross mode, margin is shared
+        across all positions. Use AssignPositionBalanceRequest.make(position, amount)
+        for automatic validation.
         """
         req = Request.post("/g-positions/assign", params=request)
         self.client.request(req)
@@ -450,21 +461,31 @@ class AsyncUSDMRest:
         data = Extractor(resp).data()
         return [OrderResponse.model_validate(item) for item in data]
 
-    async def cancel_all(self, symbol: str) -> None:
+    async def cancel_all(
+        self,
+        symbol: list[str] | str | None = None,
+        *,
+        include_triggered: bool = True,
+    ) -> None:
         """
         Cancel all orders for hedge supported symbols. For details, see:
         https://phemex-docs.github.io/#cancel-all-orders-2
 
-        NOTE: this method cancels all orders for a given symbol, triggered and
-        untriggered by invoking this endpoint twice.
+        :param symbol: Single symbol, list of symbols, or None to cancel all.
+        :param include_triggered: If True (default), also cancel triggered orders
+            via a second API call.
         """
+        if symbol is None:
+            logger.warning("cancel_all called without symbol — this will cancel ALL orders")
+
         untriggered = CancelAllOrdersRequest.make(symbol=symbol, untriggered=True)
         req_1 = Request.delete("/g-orders/all", params=untriggered)
         await self.client.request(req_1)
 
-        triggered = CancelAllOrdersRequest.make(symbol=symbol, untriggered=False)
-        req_2 = Request.delete("/g-orders/all", params=triggered)
-        await self.client.request(req_2)
+        if include_triggered:
+            triggered = CancelAllOrdersRequest.make(symbol=symbol, untriggered=False)
+            req_2 = Request.delete("/g-orders/all", params=triggered)
+            await self.client.request(req_2)
 
     async def positions(self, currency: str = "USDT") -> PositionResponse:
         """
@@ -524,8 +545,15 @@ class AsyncUSDMRest:
 
     async def assign_position_balance(self, request: AssignPositionBalanceRequest) -> None:
         """
-        Assign position balance between USDT and USD. For details, see:
+        Assign margin balance to a specific position. For details, see:
         https://phemex-docs.github.io/#assign-position-balance
+
+        This adjusts how much margin capital is allocated to a specific position,
+        allowing you to reduce liquidation risk or control capital usage.
+
+        NOTE: Only works in Isolated margin mode. In Cross mode, margin is shared
+        across all positions. Use AssignPositionBalanceRequest.make(position, amount)
+        for automatic validation.
         """
         req = Request.post("/g-positions/assign", params=request)
         await self.client.request(req)

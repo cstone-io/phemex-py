@@ -23,7 +23,7 @@ pip install phemex-py
 You need a Phemex API key and secret. Create one from
 your [Phemex account settings](https://phemex.com/help-center/how-do-i-create-an-api-key).
 
-Setting them as environment variables is a tried and true method: 
+Setting them as environment variables is a tried and true method:
 
 ```dotenv
 PHEMEX_KIND=test
@@ -109,6 +109,48 @@ client = PhemexClient(
 | Account     | `risk_units`                                                                                                        |
 | History     | `open_orders`, `closed_orders`, `closed_positions`, `user_trades`, `order_history`, `lookup_order`, `trade_history` |
 | Funding     | `funding_fee_history`, `funding_rates`                                                                              |
+
+## Philosophy
+
+`phemex-py` is a **thin SDK/wrapper** around the Phemex REST API. It handles transport, authentication, serialization,
+and type safety so you don't have to — but it intentionally stops there. Trading logic, strategy, and risk management
+belong in your code (your "engine"), not in the SDK.
+
+The guiding principle: **if Phemex returns it or requires it, we model it. If it requires judgment or strategy, that's
+your job.**
+
+### SDK responsibility (this library)
+
+- Authentication, request signing, rate limit tracking
+- Typed request/response models with validation
+- Decoding Phemex conventions (e.g. leverage sign → margin mode)
+- Convenience factories that prevent invalid API calls
+- Computed properties that surface implicit data (`margin_mode`, `effective_leverage`, `signed_size`)
+
+### Engine responsibility (your code)
+
+- **Position normalization** — merging hedged Long/Short into a net position loses information (separate liquidation
+  prices, margins, PnL). Whether and how to merge is strategy-dependent.
+- **Order routing** — deciding when, what, and how much to trade
+- **Risk management** — position sizing, max drawdown, kill switches
+- **Retry/reconnect logic** — how to handle transient failures depends on your latency and correctness requirements
+- **State management** — tracking fills, reconciling with exchange state
+
+### Example: margin mode
+
+The SDK gives you the building blocks:
+
+```python
+pos = client.usdm_rest.positions_with_pnl().get("BTCUSDT")
+print(pos.margin_mode)  # "Cross" or "Isolated" — SDK decodes this
+print(pos.effective_leverage)  # Always positive — SDK normalizes this
+
+# SDK prevents invalid API calls:
+req = SetLeverageRequest.with_margin_mode("BTCUSDT", 10, "Isolated")
+```
+
+But deciding *which* margin mode to use, *when* to change leverage, or *whether* to rebalance margin across positions —
+that's engine logic.
 
 ## Links
 

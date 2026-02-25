@@ -2,12 +2,13 @@ import hmac
 import hashlib
 import logging
 import time
+from dataclasses import dataclass
 from typing import Literal
 
 import httpx
 
 from .core.requests import Request, Extractor
-from .exceptions import PhemexError
+from .exceptions import PhemexError, raise_for_business_error
 
 from .usdm_rest import USDMRest, AsyncUSDMRest
 
@@ -17,6 +18,16 @@ _SENSITIVE_HEADERS = {"x-phemex-access-token", "x-phemex-request-signature"}
 _EXPIRY = 60  # default expiry time in seconds for request signatures
 
 PhemexKind = Literal["vip", "public", "test"]
+
+_LOW_REMAINING_THRESHOLD = 5
+
+
+@dataclass
+class RateLimitInfo:
+    """Last-seen rate limit information from Phemex API response headers."""
+    limit: int | None = None
+    remaining: int | None = None
+    retry_after: int | None = None
 
 _BASE_URLS: dict[str, str] = {
     "vip": "https://vapi.phemex.com",
@@ -34,6 +45,7 @@ class BasePhemexClient:
         self.base_url = _BASE_URLS[kind]
         self.api_key = api_key
         self.api_secret = api_secret.encode()
+        self.rate_limit = RateLimitInfo()
 
     def _prepare(self, req: Request) -> tuple[str, dict, bytes | None]:
         """
@@ -81,14 +93,15 @@ class BasePhemexClient:
         content = body_json.encode("utf-8") if body_json else None
         return url, headers, content
 
-    @staticmethod
-    def _handle_response(resp: httpx.Response, req: Request, url: str, body_json: str | None):
+    def _handle_response(self, resp: httpx.Response, req: Request, url: str, body_json: str | None):
         """
         Raise PhemexError on HTTP errors and return parsed JSON on success.
         """
         logger.debug("RESPONSE")
         logger.debug(f"Status Code: {resp.status_code}")
         logger.debug(f"Response Text: {resp.text}")
+
+        self._parse_rate_limit_headers(resp)
 
         try:
             resp.raise_for_status()
@@ -109,7 +122,38 @@ class BasePhemexClient:
                 }
             )
 
-        return resp.json()
+        data = resp.json()
+        raise_for_business_error(data)
+        return data
+
+    def _parse_rate_limit_headers(self, resp: httpx.Response) -> None:
+        """Parse x-ratelimit-* headers and store on client instance."""
+        headers = resp.headers
+
+        def _int_header(name: str) -> int | None:
+            val = headers.get(name)
+            if val is None:
+                return None
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                return None
+
+        limit = _int_header("x-ratelimit-limit")
+        remaining = _int_header("x-ratelimit-remaining")
+        retry_after = _int_header("x-ratelimit-retry-after-milliseconds") or _int_header("retry-after")
+
+        if limit is not None:
+            self.rate_limit.limit = limit
+        if remaining is not None:
+            self.rate_limit.remaining = remaining
+        if retry_after is not None:
+            self.rate_limit.retry_after = retry_after
+
+        logger.debug(f"Rate limit: {self.rate_limit}")
+
+        if remaining is not None and remaining <= _LOW_REMAINING_THRESHOLD:
+            logger.warning(f"Phemex rate limit low: {remaining}/{limit or '?'} remaining")
 
 
 class PhemexClient(BasePhemexClient):

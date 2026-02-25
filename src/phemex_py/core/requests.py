@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from .models import PhemexModel
 
-type RequestData = PhemexModel | dict[str, Any] | None
+type RequestData = dict[str, Any] | PhemexModel | None
 
 
 class Request(BaseModel):
