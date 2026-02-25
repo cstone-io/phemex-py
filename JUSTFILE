@@ -1,3 +1,5 @@
+set dotenv-load := true
+
 # Default recipe - list all available recipes
 list:
     @just --list
@@ -25,3 +27,8 @@ test-failed:
 # Analyze the codebase using cloc, excluding certain directories
 cloc:
     @cloc . --vcs=git --exclude-dir=products,tests
+
+# Publish the package to PyPI using UV, with the token provided in the environment variable
+publish:
+    @echo "Publishing package to PyPI..."
+    uv publish --token $UV_PUBLISH_TOKEN
