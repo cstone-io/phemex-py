@@ -28,6 +28,11 @@ test-failed:
 cloc:
     @cloc . --vcs=git --exclude-dir=products,tests
 
+# Build the package distribution
+build:
+    @echo "Building package..."
+    uv build
+
 # Publish the package to PyPI using UV, with the token provided in the environment variable
 publish:
     @echo "Publishing package to PyPI..."
