@@ -8,7 +8,8 @@ from typing import Literal
 import httpx
 
 from .core.requests import Request, Extractor
-from .exceptions import PhemexError, raise_for_business_error
+from .exceptions import PhemexError
+from .biz_errors import raise_for_biz_error
 
 from .usdm_rest import USDMRest, AsyncUSDMRest
 
@@ -123,7 +124,7 @@ class BasePhemexClient:
             )
 
         data = resp.json()
-        raise_for_business_error(data)
+        raise_for_biz_error(data)
         return data
 
     def _parse_rate_limit_headers(self, resp: httpx.Response) -> None:

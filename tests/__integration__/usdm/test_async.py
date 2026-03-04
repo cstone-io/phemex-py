@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from phemex_py.exceptions import PhemexAPIError
+from phemex_py.biz_errors import PhemexBizError as PhemexAPIError
 from phemex_py.usdm_rest.models import *
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")

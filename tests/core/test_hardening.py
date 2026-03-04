@@ -14,19 +14,32 @@ from unittest.mock import MagicMock
 import httpx
 
 from phemex_py.core.models import PhemexModel, PhemexRequest, PhemexResponse, PhemexDecimal
-from phemex_py.exceptions import (
-    PhemexError,
-    PhemexAPIError,
-    InsufficientMarginError,
-    OrderNotFoundError,
+from phemex_py.exceptions import PhemexError, ValidationError
+from phemex_py.biz_errors import (
+    PhemexBizError,
     DuplicateOrderError,
-    RateLimitExceededError,
-    InvalidPriceError,
-    PositionModeError,
-    raise_for_business_error,
+    OrderNotFoundError,
+    InsufficientBalanceError,
+    LeverageRiskLimitError,
+    OrderStateError,
+    ConditionalOrderError,
+    TakeProfitStopLossError,
+    TrailingOrderError,
+    BracketOrderError,
+    AccountStatusError,
+    RoutingError,
+    WalletError,
+    FeeRangeError,
+    MarketDataUnavailableError,
+    RpiError,
+    ReduceOnlyError,
+    InvalidOrderParamError,
+    DuplicateRequestError,
+    PositionMarginError,
+    _BIZ_ERROR_MAP,
+    raise_for_biz_error,
 )
 from phemex_py.client import BasePhemexClient, RateLimitInfo
-from phemex_py.exceptions import ValidationError
 from phemex_py.usdm_rest.models import (
     PlaceOrderRequest,
     OrderBuilder,
@@ -75,9 +88,9 @@ class TestForwardCompatibility:
         assert m.name == "test"
         assert m.value == 42
 
-    def test_phemex_api_error_is_phemex_error(self):
-        """PhemexAPIError extends PhemexError for backward compatibility."""
-        assert issubclass(PhemexAPIError, PhemexError)
+    def test_phemex_biz_error_is_phemex_error(self):
+        """PhemexBizError extends PhemexError."""
+        assert issubclass(PhemexBizError, PhemexError)
 
 
 # -----------------------------------------------
@@ -86,62 +99,189 @@ class TestForwardCompatibility:
 
 
 class TestBusinessErrors:
-    def test_raise_for_business_error_code_zero_passes(self):
-        raise_for_business_error({"code": 0, "msg": "OK", "data": {}})
+    def test_code_zero_passes(self):
+        raise_for_biz_error({"code": 0, "msg": "OK", "data": {}})
 
-    def test_raise_for_business_error_no_code_passes(self):
-        raise_for_business_error({"result": {"some": "data"}})
+    def test_no_code_passes(self):
+        raise_for_biz_error({"result": {"some": "data"}})
 
-    def test_raise_for_business_error_non_dict_passes(self):
-        raise_for_business_error("not a dict")  # type: ignore
+    def test_non_dict_passes(self):
+        raise_for_biz_error("not a dict")  # type: ignore
 
-    def test_raise_for_business_error_generic(self):
-        with pytest.raises(PhemexAPIError) as exc_info:
-            raise_for_business_error({"code": 99999, "msg": "Unknown error"})
+    def test_generic_unknown_code_raises_biz_error(self):
+        with pytest.raises(PhemexBizError) as exc_info:
+            raise_for_biz_error({"code": 99999, "msg": "Unknown error"})
         assert exc_info.value.code == 99999
         assert "Unknown error" in exc_info.value.msg
 
-    def test_raise_for_business_error_insufficient_margin(self):
-        with pytest.raises(InsufficientMarginError):
-            raise_for_business_error({"code": 11004, "msg": "TE_INSUFFICIENT_AVAILABLE_BALANCE"})
+    def test_duplicate_request_error(self):
+        with pytest.raises(DuplicateRequestError):
+            raise_for_biz_error({"code": 19999, "msg": "REQUEST_IS_DUPLICATED"})
 
-    def test_raise_for_business_error_order_not_found(self):
-        with pytest.raises(OrderNotFoundError):
-            raise_for_business_error({"code": 35004, "msg": "TE_ORDER_NOT_FOUND"})
-
-    def test_raise_for_business_error_duplicate_order(self):
+    def test_duplicate_order_error_10001(self):
         with pytest.raises(DuplicateOrderError):
-            raise_for_business_error({"code": 35014, "msg": "TE_DUPLICATE_ORDER_ID"})
+            raise_for_biz_error({"code": 10001, "msg": "OM_DUPLICATE_ORDERID"})
 
-    def test_raise_for_business_error_rate_limit(self):
-        with pytest.raises(RateLimitExceededError):
-            raise_for_business_error({"code": 10001, "msg": "Rate limit exceeded"})
+    def test_duplicate_order_error_11033(self):
+        with pytest.raises(DuplicateOrderError):
+            raise_for_biz_error({"code": 11033, "msg": "TE_ORDER_ID_DUPLICATE"})
 
-    def test_raise_for_business_error_invalid_price(self):
-        with pytest.raises(InvalidPriceError):
-            raise_for_business_error({"code": 30018, "msg": "TE_INVALID_PRICE"})
+    def test_duplicate_order_error_11085(self):
+        with pytest.raises(DuplicateOrderError):
+            raise_for_biz_error({"code": 11085, "msg": "TE_CL_ORD_ID_DUPLICATE"})
 
-    def test_raise_for_business_error_position_mode(self):
-        with pytest.raises(PositionModeError):
-            raise_for_business_error({"code": 39996, "msg": "TE_POSITION_MODE_CONFLICT"})
+    def test_order_not_found(self):
+        with pytest.raises(OrderNotFoundError):
+            raise_for_biz_error({"code": 10002, "msg": "OM_ORDER_NOT_FOUND"})
 
-    def test_all_typed_errors_are_phemex_api_error(self):
-        for cls in [InsufficientMarginError, OrderNotFoundError, DuplicateOrderError,
-                    RateLimitExceededError, InvalidPriceError, PositionModeError]:
-            assert issubclass(cls, PhemexAPIError)
+    def test_order_state_error_10003(self):
+        with pytest.raises(OrderStateError):
+            raise_for_biz_error({"code": 10003, "msg": "OM_ORDER_PENDING_CANCEL"})
 
-    def test_phemex_api_error_caught_by_phemex_error(self):
-        """Existing except PhemexError blocks still catch business errors."""
+    def test_order_state_error_11062(self):
+        with pytest.raises(OrderStateError):
+            raise_for_biz_error({"code": 11062, "msg": "TE_ORD_ALREADY_CANCELED"})
+
+    def test_insufficient_balance_11001(self):
+        with pytest.raises(InsufficientBalanceError):
+            raise_for_biz_error({"code": 11001, "msg": "TE_NO_ENOUGH_AVAILABLE_BALANCE"})
+
+    def test_insufficient_balance_11105(self):
+        with pytest.raises(InsufficientBalanceError):
+            raise_for_biz_error({"code": 11105, "msg": "TE_PLACE_ORDER_INSUFFICIENT_BASE_BALANCE"})
+
+    def test_leverage_risk_limit_11002(self):
+        with pytest.raises(LeverageRiskLimitError):
+            raise_for_biz_error({"code": 11002, "msg": "TE_INVALID_RISK_LIMIT"})
+
+    def test_leverage_risk_limit_11004(self):
+        with pytest.raises(LeverageRiskLimitError):
+            raise_for_biz_error({"code": 11004, "msg": "TE_INVALID_LEVERAGE"})
+
+    def test_leverage_risk_limit_11081(self):
+        with pytest.raises(LeverageRiskLimitError):
+            raise_for_biz_error({"code": 11081, "msg": "TE_RISK_LIMIT_EXCEEDS"})
+
+    def test_position_margin_error(self):
+        with pytest.raises(PositionMarginError):
+            raise_for_biz_error({"code": 11006, "msg": "TE_CANNOT_CHANGE_POSITION_MARGIN_WITHOUT_POSITION"})
+
+    def test_reduce_only_error_11011(self):
+        with pytest.raises(ReduceOnlyError):
+            raise_for_biz_error({"code": 11011, "msg": "TE_REDUCE_ONLY_ABORT"})
+
+    def test_reduce_only_error_11057(self):
+        with pytest.raises(ReduceOnlyError):
+            raise_for_biz_error({"code": 11057, "msg": "TE_QTY_NOT_MATCH_REDUCE_ONLY"})
+
+    def test_invalid_order_param_11034(self):
+        with pytest.raises(InvalidOrderParamError):
+            raise_for_biz_error({"code": 11034, "msg": "TE_SIDE_INVALID"})
+
+    def test_invalid_order_param_11114(self):
+        with pytest.raises(InvalidOrderParamError):
+            raise_for_biz_error({"code": 11114, "msg": "TE_ORDER_VALUE_TOO_LARGE"})
+
+    def test_conditional_order_error_11013(self):
+        with pytest.raises(ConditionalOrderError):
+            raise_for_biz_error({"code": 11013, "msg": "TE_CONDITIONAL_NO_POSITION"})
+
+    def test_conditional_order_error_11047(self):
+        with pytest.raises(ConditionalOrderError):
+            raise_for_biz_error({"code": 11047, "msg": "TE_BUY_TP_SHOULD_GT_BASE"})
+
+    def test_tp_sl_error_11059(self):
+        with pytest.raises(TakeProfitStopLossError):
+            raise_for_biz_error({"code": 11059, "msg": "TE_TP_SL_QTY_NOT_MATCH_POS"})
+
+    def test_tp_sl_error_11083(self):
+        with pytest.raises(TakeProfitStopLossError):
+            raise_for_biz_error({"code": 11083, "msg": "TE_TAKE_PROFIT_ORDER_DUPLICATED"})
+
+    def test_trailing_order_error(self):
+        with pytest.raises(TrailingOrderError):
+            raise_for_biz_error({"code": 11086, "msg": "TE_PEG_PRICE_TYPE_INVALID"})
+
+    def test_bracket_order_error(self):
+        with pytest.raises(BracketOrderError):
+            raise_for_biz_error({"code": 11116, "msg": "TE_BO_NUM_EXCEEDS"})
+
+    def test_account_status_banned(self):
+        with pytest.raises(AccountStatusError):
+            raise_for_biz_error({"code": 11022, "msg": "TE_REJECT_DUE_TO_BANNED"})
+
+    def test_routing_error(self):
+        with pytest.raises(RoutingError):
+            raise_for_biz_error({"code": 11025, "msg": "TE_ROUTE_ERROR"})
+
+    def test_wallet_error(self):
+        with pytest.raises(WalletError):
+            raise_for_biz_error({"code": 11097, "msg": "TE_CANNOT_FIND_WALLET_OF_THIS_CURRENCY"})
+
+    def test_fee_range_error(self):
+        with pytest.raises(FeeRangeError):
+            raise_for_biz_error({"code": 11072, "msg": "TE_TKFR_NOT_IN_RANGE"})
+
+    def test_market_data_unavailable(self):
+        with pytest.raises(MarketDataUnavailableError):
+            raise_for_biz_error({"code": 11040, "msg": "TE_NO_MARK_PRICE"})
+
+    def test_rpi_error(self):
+        with pytest.raises(RpiError):
+            raise_for_biz_error({"code": 11143, "msg": "TE_RPI_NOT_APPROVED_MARKET_MAKER"})
+
+    def test_all_biz_errors_are_phemex_biz_error(self):
+        domain_classes = [
+            DuplicateRequestError, DuplicateOrderError, OrderNotFoundError, OrderStateError,
+            InsufficientBalanceError, LeverageRiskLimitError, PositionMarginError,
+            ReduceOnlyError, InvalidOrderParamError, ConditionalOrderError,
+            TakeProfitStopLossError, TrailingOrderError, BracketOrderError,
+            AccountStatusError, RoutingError, WalletError, FeeRangeError,
+            MarketDataUnavailableError, RpiError,
+        ]
+        for cls in domain_classes:
+            assert issubclass(cls, PhemexBizError), f"{cls.__name__} must extend PhemexBizError"
+
+    def test_phemex_biz_error_caught_by_phemex_error(self):
         with pytest.raises(PhemexError):
-            raise_for_business_error({"code": 11004, "msg": "Insufficient margin"})
+            raise_for_biz_error({"code": 11001, "msg": "Insufficient balance"})
 
-    def test_api_error_attributes(self):
-        with pytest.raises(PhemexAPIError) as exc_info:
-            raise_for_business_error({"code": 11004, "msg": "test_msg", "data": {"key": "val"}})
+    def test_biz_error_attributes(self):
+        with pytest.raises(PhemexBizError) as exc_info:
+            raise_for_biz_error({"code": 11001, "msg": "test_msg", "data": {"key": "val"}})
         err = exc_info.value
-        assert err.code == 11004
+        assert err.code == 11001
         assert err.msg == "test_msg"
         assert err.context["data"] == {"key": "val"}
+
+    def test_all_150_codes_in_map(self):
+        """Every documented code from TEMP.txt must be present in _BIZ_ERROR_MAP."""
+        documented_codes = {
+            19999, 10001, 10002, 10003, 10004, 10005,
+            11001, 11002, 11003, 11004, 11005, 11006, 11007, 11008, 11009, 11010,
+            11011, 11012, 11013, 11014, 11015, 11016, 11017, 11018, 11019, 11020,
+            11021, 11022, 11023, 11024, 11025, 11026, 11027, 11028, 11029, 11030,
+            11031, 11032, 11033, 11034, 11035, 11036, 11037, 11038, 11039, 11040,
+            11041, 11042, 11043, 11044, 11045, 11046, 11047, 11048, 11049, 11050,
+            11051, 11052, 11053, 11054, 11055, 11056, 11057, 11058, 11059, 11060,
+            11061, 11062, 11063, 11064, 11065, 11066, 11067, 11068, 11069, 11070,
+            11071, 11072, 11073, 11074, 11075, 11076, 11077, 11078, 11079, 11080,
+            11081, 11082, 11083, 11084, 11085, 11086, 11087, 11088, 11089, 11090,
+            11091, 11092, 11093, 11094, 11095, 11096, 11097, 11098, 11099, 11100,
+            11101, 11102, 11103, 11104, 11105, 11106, 11107, 11108, 11109, 11110,
+            11111, 11112, 11113, 11114, 11115, 11116, 11117, 11118, 11119, 11120,
+            11121, 11122, 11123, 11124, 11125, 11126, 11128, 11129, 11130, 11131,
+            11132, 11133, 11134, 11143, 11150,
+        }
+        missing = documented_codes - set(_BIZ_ERROR_MAP.keys())
+        assert not missing, f"Missing codes in _BIZ_ERROR_MAP: {sorted(missing)}"
+
+    def test_logging_on_biz_error(self, caplog):
+        import logging
+        with caplog.at_level(logging.WARNING, logger="phemex_py.biz_errors"):
+            with pytest.raises(PhemexBizError):
+                raise_for_biz_error({"code": 11001, "msg": "TE_NO_ENOUGH_AVAILABLE_BALANCE"})
+        assert any("11001" in r.message for r in caplog.records)
 
 
 # -----------------------------------------------
