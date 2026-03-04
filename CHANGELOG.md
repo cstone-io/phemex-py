@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0 (2026-03-03)
+
+### Breaking Changes
+
+- Removed `PhemexAPIError`, `InsufficientMarginError`, `RateLimitExceededError`, `InvalidPriceError`, `PositionModeError` from `exceptions.py` — replaced by the new `biz_errors` module
+- `raise_for_business_error` removed; use `raise_for_biz_error` from `phemex_py.biz_errors`
+
+### Added
+
+- `biz_errors` module with full 1-to-1 coverage of all ~143 documented Phemex business error codes
+- `PhemexBizError` — new base class for all HTTP-200 business errors (inherits `PhemexError`)
+- 19 domain-specific exception subclasses: `DuplicateRequestError`, `DuplicateOrderError`, `OrderNotFoundError`, `OrderStateError`, `InsufficientBalanceError`, `LeverageRiskLimitError`, `PositionMarginError`, `ReduceOnlyError`, `InvalidOrderParamError`, `ConditionalOrderError`, `TakeProfitStopLossError`, `TrailingOrderError`, `BracketOrderError`, `AccountStatusError`, `RoutingError`, `WalletError`, `FeeRangeError`, `MarketDataUnavailableError`, `RpiError`
+- `_BIZ_ERROR_MAP` — internal dict mapping every documented code to its typed exception class
+- Structured `WARNING` log line emitted before every business error raise (via `phemex_py.biz_errors` logger)
+- Reworked order response models for verbosity and consistency (edge-case prevention)
+- All new biz error classes exported from `phemex_py` top-level
+
 ## 0.2.0 (2026-02-25)
 
 ### SDK Ergonomics: Position Mode, Leverage & Margin Mode

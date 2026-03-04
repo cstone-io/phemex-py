@@ -30,7 +30,7 @@ from .biz_errors import (
 logging.getLogger("phemex_py").addHandler(logging.NullHandler())
 logging.getLogger("phemex_py").setLevel(logging.WARNING)
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = [
     # Core
     "PhemexDecimal",
