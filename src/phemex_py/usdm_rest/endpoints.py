@@ -46,7 +46,7 @@ class USDMRest:
         raise NotImplementedError("Response schema not yet defined, use 'product_information' endpoint for now.")
 
     @deprecated("'place_order' is the preferred method; this will be removed in a future release.")
-    def place_order_put(self, request: PlaceOrderRequest) -> OrderResponse | None:
+    def place_order_put(self, request: PlaceOrderRequest) -> PutPlaceOrderResponse | None:
         """
         Place a new USD-M perpetual order (preferred endpoint using PUT). For details, see:
         https://phemex-docs.github.io/#place-order-http-put-prefered-2
@@ -54,9 +54,9 @@ class USDMRest:
         req = Request.put("/g-orders/create", params=request)
         resp = self.client.request(req)
         data = Extractor(resp).data()
-        return OrderResponse.model_validate(data) if data else None
+        return PutPlaceOrderResponse.model_validate(data) if data else None
 
-    def place_order(self, request: PlaceOrderRequest) -> OrderResponse | None:
+    def place_order(self, request: PlaceOrderRequest) -> PlaceOrderResponse | None:
         """
         Place a new USD-M perpetual order using a POST. For details, see:
         https://phemex-docs.github.io/#place-order-http-post-2
@@ -64,9 +64,9 @@ class USDMRest:
         req = Request.post("/g-orders", body=request)
         resp = self.client.request(req)
         data = Extractor(resp).data()
-        return OrderResponse.model_validate(data) if data else None
+        return PlaceOrderResponse.model_validate(data) if data else None
 
-    def amend_order(self, request: AmendOrderRequest) -> OrderResponse | None:
+    def amend_order(self, request: AmendOrderRequest) -> AmendOrderResponse | None:
         """
         Amend an existing USD-M perpetual order. For details, see:
         https://phemex-docs.github.io/#amend-order-by-orderid
@@ -74,9 +74,9 @@ class USDMRest:
         req = Request.put("/g-orders/replace", params=request)
         resp = self.client.request(req)
         data = Extractor(resp).data()
-        return OrderResponse.model_validate(data) if data else None
+        return AmendOrderResponse.model_validate(data) if data else None
 
-    def cancel_order(self, request: CancelOrderRequest) -> OrderResponse | None:
+    def cancel_order(self, request: CancelOrderRequest) -> CancelOrderResponse | None:
         """
         Cancel an existing USD-M perpetual order. For details, see:
         https://phemex-docs.github.io/#cancel-single-order-by-orderid
@@ -84,9 +84,9 @@ class USDMRest:
         req = Request.delete("/g-orders/cancel", params=request)
         resp = self.client.request(req)
         data = Extractor(resp).data()
-        return OrderResponse.model_validate(data) if data else None
+        return CancelOrderResponse.model_validate(data) if data else None
 
-    def bulk_cancel(self, request: BulkCancelOrderRequest) -> list[OrderResponse]:
+    def bulk_cancel(self, request: BulkCancelOrderRequest) -> list[CancelOrderResponse]:
         """
         Bulk cancel USD-M perpetual orders. For details, see:
         https://phemex-docs.github.io/#bulk-cancel-orders-2
@@ -94,7 +94,7 @@ class USDMRest:
         req = Request.delete("/g-orders", params=request)
         resp = self.client.request(req)
         data = Extractor(resp).data()
-        return [OrderResponse.model_validate(item) for item in data]
+        return [CancelOrderResponse.model_validate(item) for item in data]
 
     def cancel_all(
         self,
@@ -210,7 +210,7 @@ class USDMRest:
         req = Request.post("/g-positions/assign", params=request)
         self.client.request(req)
 
-    def open_orders(self, symbol: str) -> list[OpenOrder]:
+    def open_orders(self, symbol: str) -> list[OpenOrderResponse]:
         """
         Fetch all open USD-M perpetual orders for a given symbol. For details, see:
         https://phemex-docs.github.io/#query-open-orders-by-symbol-2
@@ -220,9 +220,9 @@ class USDMRest:
         data = Extractor(resp).data()
         if data is None:
             return []
-        return [OpenOrder.model_validate(item) for item in data["rows"]]
+        return [OpenOrderResponse.model_validate(item) for item in data["rows"]]
 
-    def closed_orders(self, request: ClosedOrdersRequest) -> list[ClosedOrder]:
+    def closed_orders(self, request: ClosedOrdersRequest) -> list[ClosedOrderResponse]:
         """
         Fetch recent closed USD-M perpetual orders for a given symbol. For details, see:
         https://phemex-docs.github.io/#query-closed-orders-by-symbol-2
@@ -232,7 +232,7 @@ class USDMRest:
         data = Extractor(resp).data()
         if data is None:
             return []
-        return [ClosedOrder.model_validate(item) for item in data]
+        return [ClosedOrderResponse.model_validate(item) for item in data]
 
     def closed_positions(self, request: ClosedPositionRequest) -> list[ClosedPosition]:
         """
@@ -314,7 +314,7 @@ class USDMRest:
         data = Extractor(resp).key("result").extract()
         return [Ticker.model_validate(item) for item in data]
 
-    def order_history(self, symbol: str) -> list[OrderHistoryItem]:
+    def order_history(self, symbol: str) -> list[OrderHistoryResponse]:
         """
         Fetch order history. For details, see:
         https://phemex-docs.github.io/#query-orders-history
@@ -324,9 +324,9 @@ class USDMRest:
         data = Extractor(resp).key("data", "rows").extract()
         if data is None:
             return []
-        return [OrderHistoryItem.model_validate(item) for item in data]
+        return [OrderHistoryResponse.model_validate(item) for item in data]
 
-    def lookup_order(self, symbol: str, order_id: str) -> OpenOrder | None:
+    def lookup_order(self, symbol: str, order_id: str) -> OpenOrderResponse | None:
         """
         Fetch a specific order by symbol and order ID. For details, see:
         https://phemex-docs.github.io/#query-orders-by-ids
@@ -337,7 +337,7 @@ class USDMRest:
         data = Extractor(resp).key("data", "rows").extract()
         if data is None or len(data) == 0:
             return None
-        return OpenOrder.model_validate(data.pop())
+        return OpenOrderResponse.model_validate(data.pop())
 
     def trade_history(self, request: TradeHistoryRequest) -> list[TradeHistoryItem]:
         """
@@ -411,7 +411,7 @@ class AsyncUSDMRest:
         raise NotImplementedError("Response schema not yet defined, use 'product_information' endpoint for now.")
 
     @deprecated("'place_order' is the preferred method; this will be removed in a future release.")
-    async def place_order_put(self, request: PlaceOrderRequest) -> OrderResponse | None:
+    async def place_order_put(self, request: PlaceOrderRequest) -> PutPlaceOrderResponse | None:
         """
         Place a new USD-M perpetual order (preferred endpoint using PUT). For details, see:
         https://phemex-docs.github.io/#place-order-http-put-prefered-2
@@ -419,9 +419,9 @@ class AsyncUSDMRest:
         req = Request.put("/g-orders/create", params=request)
         resp = await self.client.request(req)
         data = Extractor(resp).data()
-        return OrderResponse.model_validate(data) if data else None
+        return PutPlaceOrderResponse.model_validate(data) if data else None
 
-    async def place_order(self, request: PlaceOrderRequest) -> OrderResponse | None:
+    async def place_order(self, request: PlaceOrderRequest) -> PlaceOrderResponse | None:
         """
         Place a new USD-M perpetual order using a POST. For details, see:
         https://phemex-docs.github.io/#place-order-http-post-2
@@ -429,9 +429,9 @@ class AsyncUSDMRest:
         req = Request.post("/g-orders", body=request)
         resp = await self.client.request(req)
         data = Extractor(resp).data()
-        return OrderResponse.model_validate(data) if data else None
+        return PlaceOrderResponse.model_validate(data) if data else None
 
-    async def amend_order(self, request: AmendOrderRequest) -> OrderResponse | None:
+    async def amend_order(self, request: AmendOrderRequest) -> AmendOrderResponse | None:
         """
         Amend an existing USD-M perpetual order. For details, see:
         https://phemex-docs.github.io/#amend-order-by-orderid
@@ -439,9 +439,9 @@ class AsyncUSDMRest:
         req = Request.put("/g-orders/replace", params=request)
         resp = await self.client.request(req)
         data = Extractor(resp).data()
-        return OrderResponse.model_validate(data) if data else None
+        return AmendOrderResponse.model_validate(data) if data else None
 
-    async def cancel_order(self, request: CancelOrderRequest) -> OrderResponse | None:
+    async def cancel_order(self, request: CancelOrderRequest) -> CancelOrderResponse | None:
         """
         Cancel an existing USD-M perpetual order. For details, see:
         https://phemex-docs.github.io/#cancel-single-order-by-orderid
@@ -449,9 +449,9 @@ class AsyncUSDMRest:
         req = Request.delete("/g-orders/cancel", params=request)
         resp = await self.client.request(req)
         data = Extractor(resp).data()
-        return OrderResponse.model_validate(data) if data else None
+        return CancelOrderResponse.model_validate(data) if data else None
 
-    async def bulk_cancel(self, request: BulkCancelOrderRequest) -> list[OrderResponse]:
+    async def bulk_cancel(self, request: BulkCancelOrderRequest) -> list[CancelOrderResponse]:
         """
         Bulk cancel USD-M perpetual orders. For details, see:
         https://phemex-docs.github.io/#bulk-cancel-orders-2
@@ -459,7 +459,7 @@ class AsyncUSDMRest:
         req = Request.delete("/g-orders", params=request)
         resp = await self.client.request(req)
         data = Extractor(resp).data()
-        return [OrderResponse.model_validate(item) for item in data]
+        return [CancelOrderResponse.model_validate(item) for item in data]
 
     async def cancel_all(
         self,
@@ -558,7 +558,7 @@ class AsyncUSDMRest:
         req = Request.post("/g-positions/assign", params=request)
         await self.client.request(req)
 
-    async def open_orders(self, symbol: str) -> list[OpenOrder]:
+    async def open_orders(self, symbol: str) -> list[OpenOrderResponse]:
         """
         Fetch all open USD-M perpetual orders for a given symbol. For details, see:
         https://phemex-docs.github.io/#query-open-orders-by-symbol-2
@@ -568,9 +568,9 @@ class AsyncUSDMRest:
         data = Extractor(resp).data()
         if data is None:
             return []
-        return [OpenOrder.model_validate(item) for item in data["rows"]]
+        return [OpenOrderResponse.model_validate(item) for item in data["rows"]]
 
-    async def closed_orders(self, request: ClosedOrdersRequest) -> list[ClosedOrder]:
+    async def closed_orders(self, request: ClosedOrdersRequest) -> list[ClosedOrderResponse]:
         """
         Fetch recent closed USD-M perpetual orders for a given symbol. For details, see:
         https://phemex-docs.github.io/#query-closed-orders-by-symbol-2
@@ -580,7 +580,7 @@ class AsyncUSDMRest:
         data = Extractor(resp).data()
         if data is None:
             return []
-        return [ClosedOrder.model_validate(item) for item in data]
+        return [ClosedOrderResponse.model_validate(item) for item in data]
 
     async def closed_positions(self, request: ClosedPositionRequest) -> list[ClosedPosition]:
         """
@@ -662,7 +662,7 @@ class AsyncUSDMRest:
         data = Extractor(resp).key("result").extract()
         return [Ticker.model_validate(item) for item in data]
 
-    async def order_history(self, symbol: str) -> list[OrderHistoryItem]:
+    async def order_history(self, symbol: str) -> list[OrderHistoryResponse]:
         """
         Fetch order history. For details, see:
         https://phemex-docs.github.io/#query-orders-history
@@ -672,9 +672,9 @@ class AsyncUSDMRest:
         data = Extractor(resp).key("data", "rows").extract()
         if data is None:
             return []
-        return [OrderHistoryItem.model_validate(item) for item in data]
+        return [OrderHistoryResponse.model_validate(item) for item in data]
 
-    async def lookup_order(self, symbol: str, order_id: str) -> OpenOrder | None:
+    async def lookup_order(self, symbol: str, order_id: str) -> OpenOrderResponse | None:
         """
         Fetch a specific order by symbol and order ID. For details, see:
         https://phemex-docs.github.io/#query-orders-by-ids
@@ -685,7 +685,7 @@ class AsyncUSDMRest:
         data = Extractor(resp).key("data", "rows").extract()
         if data is None or len(data) == 0:
             return None
-        return OpenOrder.model_validate(data.pop())
+        return OpenOrderResponse.model_validate(data.pop())
 
     async def trade_history(self, request: TradeHistoryRequest) -> list[TradeHistoryItem]:
         """

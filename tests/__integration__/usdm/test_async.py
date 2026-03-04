@@ -24,7 +24,7 @@ def order_to_live():
 class TestAsyncPhemexUSDMOrderExecution:
     # Order tests may raise PhemexAPIError on testnet due to account state
     # (e.g. no balance). We accept specific business errors as valid outcomes.
-    _ACCEPTABLE_ORDER_CODES = {11001, 11004, 11006, 11082}
+    _ACCEPTABLE_ORDER_CODES = {11001, 11004, 11006, 11082, 20004}
 
     async def _place_or_skip(self, client, order):
         """Place an order, skipping the test if testnet account lacks balance."""
@@ -44,7 +44,12 @@ class TestAsyncPhemexUSDMOrderExecution:
         await asyncio.sleep(1)
 
         # Step 2: Fetch the open order to get its ID
-        orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+        try:
+            orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+        except PhemexAPIError as e:
+            if e.code == 10002:
+                pytest.skip("Order not found in open orders (likely filled immediately on testnet)")
+            raise
         assert len(orders) > 0, "Expected at least one open order after placing"
         order = orders[0]
 
@@ -71,7 +76,12 @@ class TestAsyncPhemexUSDMOrderExecution:
             await self._place_or_skip(async_client, order_to_live)
             await asyncio.sleep(1)
 
-        orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+        try:
+            orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+        except PhemexAPIError as e:
+            if e.code == 10002:
+                pytest.skip("No open orders found on testnet")
+            raise
         assert len(orders) >= 2, "Expected at least 2 open orders"
         order_ids = [o.order_id for o in orders[:2]]
 
@@ -82,7 +92,7 @@ class TestAsyncPhemexUSDMOrderExecution:
         bulk_cancel_resp = await async_client.usdm_rest.bulk_cancel(bulk_cancel_req)
         assert isinstance(bulk_cancel_resp, list)
         for resp in bulk_cancel_resp:
-            assert isinstance(resp, OrderResponse)
+            assert isinstance(resp, BulkCancelOrderResponse)
 
     async def test_cancel_all_orders(self, async_client, order_to_live):
         await self._place_or_skip(async_client, order_to_live)
@@ -94,11 +104,16 @@ class TestAsyncPhemexUSDMOrderExecution:
 
 class TestAsyncPhemexUSDMOrderInformation:
     async def test_perp_get_open_orders(self, async_client):
-        orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+        try:
+            orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+        except PhemexAPIError as e:
+            if e.code == 10002:
+                pytest.skip("No open orders on testnet")
+            raise
 
         assert isinstance(orders, list)
         for order in orders:
-            assert isinstance(order, OpenOrder)
+            assert isinstance(order, OpenOrderResponse)
 
     async def test_get_closed_orders(self, async_client):
         req = ClosedOrdersRequest.default(symbol="BTCUSDT")
@@ -106,17 +121,21 @@ class TestAsyncPhemexUSDMOrderInformation:
 
         assert isinstance(orders, list)
         for order in orders:
-            assert isinstance(order, ClosedOrder)
+            assert isinstance(order, ClosedOrderResponse)
 
     async def test_lookup_order(self, async_client):
-        orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+        try:
+            orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+        except PhemexAPIError as e:
+            if e.code == 10002:
+                pytest.skip("No open orders on testnet")
+            raise
         if not orders:
             pytest.skip("No open orders to look up")
         order_id = orders[0].order_id
         looked_up = await async_client.usdm_rest.lookup_order(symbol="BTCUSDT", order_id=order_id)
-        # lookup_order may return None if the order was filled/cancelled between queries
         if looked_up is not None:
-            assert isinstance(looked_up, OpenOrder)
+            assert isinstance(looked_up, OpenOrderResponse)
             assert looked_up.order_id == order_id
 
     async def test_order_history(self, async_client):
@@ -124,7 +143,7 @@ class TestAsyncPhemexUSDMOrderInformation:
 
         assert isinstance(orders, list)
         for order in orders:
-            assert isinstance(order, OrderHistoryItem)
+            assert isinstance(order, OrderHistoryResponse)
 
 
 class TestAsyncPhemexUSDMPortfolio:

@@ -1,11 +1,11 @@
 from abc import ABC
-from typing import Annotated, Any, ClassVar, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import ConfigDict, field_validator, model_validator
+from pydantic import field_validator, model_validator
 
 from ..core.datetime import unix_now, MS
 from ..exceptions import ValidationError
-from ..core.models import PhemexModel, PhemexRequest, PhemexResponse, PhemexDecimal, PhemexDecimalLike
+from ..core.models import PhemexRequest, PhemexResponse, PhemexDecimal, PhemexDecimalLike
 from ..core import fields as f
 
 
@@ -177,87 +177,10 @@ class ProductResponse(PhemexResponse):
 # Order related models
 # --------------------------------------
 
-class OrderCore(PhemexRequest):
-    client_id: Annotated[str | None, *f.Order.ClientID("clOrdID")] = None
-    order_type: Annotated[str | None, *f.Order.OrderType("orderType")] = None
-    symbol: Annotated[str | None, *f.Symbol("symbol")] = None
-    side: Annotated[str | None, *f.Order.Side("side")] = None
-    quantity: Annotated[PhemexDecimal | None, *f.Order.Quantity("orderQtyRq")] = None
-    price: Annotated[PhemexDecimal | None, *f.Order.Price("priceRp")] = None
-
-    reduce_only: Annotated[bool | None, *f.OrderCondition.ReduceOnly("reduceOnly")] = None
-    time_in_force: Annotated[str | None, *f.OrderCondition.TimeInForce("timeInForce")] = None
-
-    peg_type: Annotated[str | None, *f.OrderCondition.PegType("pegPriceType")] = None
-    peg_offset: Annotated[PhemexDecimal | None, *f.OrderCondition.PegOffsetValue("pegOffsetValueRp")] = None
-    stop_direction: Annotated[str | None, *f.OrderCondition.StopDirection("stopDirection")] = None
-    stop_price: Annotated[PhemexDecimal | None, *f.OrderCondition.StopPrice("stopPxRp")] = None
-    sl_price: Annotated[PhemexDecimal | None, *f.OrderCondition.StopLossPrice("stopLossRp")] = None
-    sl_price_alt: Annotated[PhemexDecimal | None, *f.OrderCondition.StopLossPrice("slPxRp", alt=True)] = None
-    tp_price: Annotated[PhemexDecimal | None, *f.OrderCondition.TakeProfitPrice("takeProfitRp")] = None
-    tp_price_alt: Annotated[PhemexDecimal | None, *f.OrderCondition.TakeProfitPrice("tpPxRp", alt=True)] = None
-    trigger: Annotated[str | None, *f.OrderCondition.TriggerType("triggerType")] = None
-
-
-class OrderResponse(OrderCore):
-    """
-    Many order endpoints share this output model i.e. place order, amend order, get order
-    """
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
-
-    order_id: Annotated[str | None, *f.Order.ID("orderID")] = None
-    error: Annotated[int | None, *f.ErrorCode("bizError")] = None
-
-    action_time_ns: Annotated[int | None, *f.Time.Action("actionTimeNs")] = None
-    trans_time_ns: Annotated[int | None, *f.Time.Transaction("transactTimeNs")] = None
-    order_status: Annotated[str | None, *f.Order.Status("ordStatus")] = None
-    exec_status: Annotated[str | None, *f.OrderExecution.Status("execStatus")] = None
-    exec_instructions: Annotated[str | None, *f.OrderExecution.Instructions("execInst")] = None
-
-    closed_size: Annotated[PhemexDecimal | None, *f.Position.ClosedSize("closedSizeRq")] = None
-    closed_pnl: Annotated[PhemexDecimal | None, *f.PNL.Closed("closedPnlRv")] = None
-    cum_qty: Annotated[PhemexDecimal | None, *f.OrderQuantity.Cumulative("cumQtyRq")] = None
-    cum_value: Annotated[PhemexDecimal | None, *f.OrderValue.Cumulative("cumValueRv")] = None
-    leaves_qty: Annotated[PhemexDecimal | None, *f.OrderQuantity.Leaves("leavesQtyRq")] = None
-    leaves_value: Annotated[PhemexDecimal | None, *f.OrderValue.Leaves("leavesValueRv")] = None
-    display_qty: Annotated[PhemexDecimal | None, *f.OrderQuantity.Display("displayQtyRq")] = None
-
-    peg_price: Annotated[PhemexDecimal | None, *f.OrderCondition.PegPrice("priceRq")] = None
-    peg_proportion: Annotated[
-        PhemexDecimal | None, *f.OrderCondition.PegOffsetProportion("pegOffsetProportionRr")] = None
-
-
-class OpenOrder(OrderCore):
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
-
-    order_id: Annotated[str, *f.Order.ID("orderID")]
-    client_id: Annotated[str | None, *f.Order.ClientID("clOrdID")] = None
-    error: Annotated[int, *f.ErrorCode("bizError")]
-    order_type: Annotated[str, *f.Order.OrderType("orderType")]
-
-    action_time: Annotated[int, *f.Time.Action("actionTimeNs")]
-    trans_time: Annotated[int, *f.Time.Transaction("transactTimeNs")]
-    order_status: Annotated[str, *f.Order.Status("ordStatus")]
-
-    closed_size: Annotated[PhemexDecimal | None, *f.Position.ClosedSize("closedSizeRq")] = None
-    closed_pnl: Annotated[PhemexDecimal | None, *f.PNL.Closed("closedPnlRv")] = None
-    cum_value: Annotated[PhemexDecimal | None, *f.OrderValue.Cumulative("cumValueRv")] = None
-    cum_qty: Annotated[PhemexDecimal | None, *f.OrderQuantity.Cumulative("cumQtyRq")] = None
-    leaves_qty: Annotated[PhemexDecimal | None, *f.OrderQuantity.Leaves("leavesQtyRq")] = None
-    leaves_value: Annotated[PhemexDecimal | None, *f.OrderValue.Leaves("leavesValueRv")] = None
-    display_qty: Annotated[PhemexDecimal | None, *f.OrderQuantity.Display("displayQtyRq")] = None
-
-    exec_instructions: Annotated[str | None, *f.OrderExecution.Instructions("execInst")] = None
-    exec_status: Annotated[str | None, *f.OrderExecution.Status("execStatus")] = None
-
-    peg_proportion: Annotated[
-        PhemexDecimal | None, *f.OrderCondition.PegOffsetProportion("pegOffsetProportionRr")] = None
-
-
 class OrderBuilder:
     """
     Mixin to add helper methods for building place order requests.
-    Defaults (can be easily overriden):
+    Defaults (can be easily overridden):
     - Long
     - Market Order
     - Good Till Cancel (GTC)
@@ -321,9 +244,9 @@ class OrderBuilder:
         })
         return self
 
-    def client_order_id(self, id: str) -> Self:
+    def client_order_id(self, id_: str) -> Self:
         """Set the client order ID (clOrdID) for idempotency."""
-        self._data["client_id"] = id
+        self._data["client_id"] = id_
         return self
 
     def tif(self, value: str) -> Self:
@@ -334,16 +257,38 @@ class OrderBuilder:
         return self
 
 
-class PlaceOrderRequest(OrderCore):
-    text: Annotated[str | None, *f.Request.Text("text")] = None
+class PlaceOrderRequest(PhemexRequest):
+    symbol: Annotated[str, *f.Symbol("symbol")]
+    side: Annotated[str, *f.Order.Side("side")]
     pos_side: Annotated[str, *f.Position.Side("posSide")]
-    sl_trigger: Annotated[str | None, *f.OrderCondition.StopLossTrigger("slTrigger")] = None
-    tp_trigger: Annotated[str | None, *f.OrderCondition.TakeProfitTrigger("tpTrigger")] = None
+
+    client_id: Annotated[str | None, *f.Order.ClientID("clOrdID")] = None
+    order_type: Annotated[str | None, *f.Order.OrderType("ordType")] = None
+    quantity: Annotated[PhemexDecimal | None, *f.Order.Quantity("orderQtyRq")] = None
+    price: Annotated[PhemexDecimal | None, *f.Order.Price("priceRp")] = None
+    text: Annotated[str | None, *f.Request.Text("text")] = None
+
+    reduce_only: Annotated[bool | None, *f.OrderCondition.ReduceOnly("reduceOnly")] = None
     close_on_trigger: Annotated[bool | None, *f.OrderCondition.CloseOnTrigger("closeOnTrigger")] = None
+    time_in_force: Annotated[str | None, *f.OrderCondition.TimeInForce("timeInForce")] = None
+
+    peg_type: Annotated[str | None, *f.OrderCondition.PegType("pegPriceType")] = None
+    peg_offset: Annotated[PhemexDecimal | None, *f.OrderCondition.PegOffsetValue("pegOffsetValueRp")] = None
+    stop_price: Annotated[PhemexDecimal | None, *f.OrderCondition.StopPrice("stopPxRp")] = None
+    trigger: Annotated[str | None, *f.OrderCondition.TriggerType("triggerType")] = None
+
+    tp_price: Annotated[PhemexDecimal | None, *f.OrderCondition.TakeProfitPrice("takeProfitRp")] = None
+    tp_price_alt: Annotated[PhemexDecimal | None, *f.OrderCondition.TakeProfitPrice("tpPxRp", alt=True)] = None
+    tp_trigger: Annotated[str | None, *f.OrderCondition.TakeProfitTrigger("tpTrigger")] = None
+
+    sl_price: Annotated[PhemexDecimal | None, *f.OrderCondition.StopLossPrice("stopLossRp")] = None
+    sl_price_alt: Annotated[PhemexDecimal | None, *f.OrderCondition.StopLossPrice("slPxRp", alt=True)] = None
+    sl_trigger: Annotated[str | None, *f.OrderCondition.StopLossTrigger("slTrigger")] = None
+
     stp_instruction: Annotated[str | None, *f.OrderCondition.STPInstruction("stpInstruction")] = None
 
     @classmethod
-    def builder(cls, symbol: str) -> OrderBuilder:
+    def builder(cls, symbol: str) -> "OrderBuilder":
         """Helper to create an OrderBuilder for the given symbol."""
         return OrderBuilder(symbol)
 
@@ -387,8 +332,7 @@ class PlaceOrderRequest(OrderCore):
     @model_validator(mode="after")
     def validate_take_profit(self):
         if self.tp_price and not self.tp_trigger:
-            raise ValidationError(message="Take Profit Trigger is required when Take Profit Price is set"
-                                  )
+            raise ValidationError(message="Take Profit Trigger is required when Take Profit Price is set")
         if self.tp_price_alt and not self.tp_price:
             raise ValidationError(message="Take Profit Price (Advanced) requires Take Profit Price")
         return self
@@ -408,9 +352,49 @@ class PlaceOrderRequest(OrderCore):
         return self
 
 
+class PutPlaceOrderResponse(PhemexResponse):
+    order_id: Annotated[str, *f.Order.ID("orderID")]
+    client_id: Annotated[str | None, *f.Order.ClientID("clOrdID")] = None
+    error: Annotated[int, *f.ErrorCode("bizError")]
+
+    symbol: Annotated[str, *f.Symbol("symbol")]
+    side: Annotated[str, *f.Order.Side("side")]
+    order_type: Annotated[str, *f.Order.OrderType("orderType")]
+    quantity: Annotated[PhemexDecimal, *f.Order.Quantity("orderQtyRq")]
+    price: Annotated[PhemexDecimal | None, *f.Order.Price("priceRp")] = None
+
+    order_status: Annotated[str, *f.Order.Status("ordStatus")]
+    exec_status: Annotated[str | None, *f.OrderExecution.Status("execStatus")] = None
+    exec_instructions: Annotated[str | None, *f.OrderExecution.Instructions("execInst")] = None
+
+    action_time_ns: Annotated[int | None, *f.Time.Action("actionTimeNs")] = None
+    trans_time_ns: Annotated[int | None, *f.Time.Transaction("transactTimeNs")] = None
+
+    reduce_only: Annotated[bool | None, *f.OrderCondition.ReduceOnly("reduceOnly")] = None
+    time_in_force: Annotated[str | None, *f.OrderCondition.TimeInForce("timeInForce")] = None
+    peg_type: Annotated[str | None, *f.OrderCondition.PegType("pegPriceType")] = None
+    peg_offset: Annotated[PhemexDecimal | None, *f.OrderCondition.PegOffsetValue("pegOffsetValueRp")] = None
+    stop_direction: Annotated[str | None, *f.OrderCondition.StopDirection("stopDirection")] = None
+    stop_price: Annotated[PhemexDecimal | None, *f.OrderCondition.StopPrice("stopPxRp")] = None
+    trigger: Annotated[str | None, *f.OrderCondition.TriggerType("trigger")] = None
+
+    closed_size: Annotated[PhemexDecimal | None, *f.Position.ClosedSize("closedSizeRq")] = None
+    closed_pnl: Annotated[PhemexDecimal | None, *f.PNL.Closed("closedPnlRv")] = None
+    cum_qty: Annotated[PhemexDecimal | None, *f.OrderQuantity.Cumulative("cumQtyRq")] = None
+    cum_value: Annotated[PhemexDecimal | None, *f.OrderValue.Cumulative("cumValueRv")] = None
+    leaves_qty: Annotated[PhemexDecimal | None, *f.OrderQuantity.Leaves("leavesQtyRq")] = None
+    leaves_value: Annotated[PhemexDecimal | None, *f.OrderValue.Leaves("leavesValueRv")] = None
+    display_qty: Annotated[PhemexDecimal | None, *f.OrderQuantity.Display("displayQtyRq")] = None
+
+
+class PlaceOrderResponse(PutPlaceOrderResponse):
+    # Identical but uses a slightly different alias for price
+    price: Annotated[PhemexDecimal | None, *f.Order.Price("priceRq")] = None
+
+
 class AmendOrderRequest(PhemexRequest):
     order_id: Annotated[str | None, *f.Order.ID("orderID")] = None
-    client_id: Annotated[str | None, *f.Order.ClientID("clOrdID")] = None
+    client_id: Annotated[str | None, *f.Order.ClientID("origClOrdID")] = None
     pos_side: Annotated[str, *f.Position.Side("posSide")]
     symbol: Annotated[str, *f.Symbol("symbol")]
 
@@ -448,6 +432,14 @@ class AmendOrderRequest(PhemexRequest):
         return self
 
 
+class AmendOrderResponse(PutPlaceOrderResponse):
+    tp_price: Annotated[PhemexDecimal | None, *f.OrderCondition.TakeProfitPrice("takeProfitRp")] = None
+    sl_price: Annotated[PhemexDecimal | None, *f.OrderCondition.StopLossPrice("stopLossRp")] = None
+
+
+
+
+
 class CancelOrderRequest(PhemexRequest):
     order_id: Annotated[str | None, *f.Order.ID("orderID")] = None
     client_id: Annotated[str | None, *f.Order.ClientID("clOrdID")] = None
@@ -470,6 +462,10 @@ class CancelOrderRequest(PhemexRequest):
             order_id=order_id,
             pos_side="Long"  # TODO: extend configurability
         )
+
+
+class CancelOrderResponse(PlaceOrderResponse):
+    pass
 
 
 class BulkCancelOrderRequest(PhemexRequest):
@@ -521,6 +517,9 @@ class CancelAllOrdersRequest(PhemexRequest):
             untriggered=untriggered,
         )
 
+class OpenOrderResponse(AmendOrderResponse):
+    peg_proportion: Annotated[PhemexDecimal | None, *f.OrderCondition.PegOffsetProportion("pegOffsetProportionRr")] = None
+
 
 class ClosedOrdersRequest(PhemexRequest):
     symbol: Annotated[str | None, *f.Symbol("symbol")] = None
@@ -545,7 +544,7 @@ class ClosedOrdersRequest(PhemexRequest):
         )
 
 
-class ClosedOrder(PhemexResponse):
+class ClosedOrderResponse(PhemexResponse):
     order_id: Annotated[str, *f.Order.ID("orderId")]
     client_id: Annotated[str, *f.Order.ClientID("clOrdId")]
     created_at: Annotated[int, *f.Time.CreatedAt("createdAt")]
@@ -585,7 +584,7 @@ class ClosedOrder(PhemexResponse):
     total_pnl: Annotated[PhemexDecimal | None, *f.PNL.Total("totalPnlRv")] = None
 
 
-class OrderHistoryItem(PhemexResponse):
+class OrderHistoryResponse(PhemexResponse):
     order_id: Annotated[str, *f.Order.ID("orderId")]
     client_id: Annotated[str, *f.Order.ClientID("clOrdId")]
     status: Annotated[str, *f.Order.Status("ordStatus")]
@@ -921,12 +920,12 @@ class SetLeverageRequest(PhemexRequest):
 
     @classmethod
     def with_margin_mode(
-        cls,
-        symbol: str,
-        leverage: PhemexDecimalLike,
-        margin_mode: Literal["Cross", "Isolated"],
-        *,
-        hedged: bool = True,
+            cls,
+            symbol: str,
+            leverage: PhemexDecimalLike,
+            margin_mode: Literal["Cross", "Isolated"],
+            *,
+            hedged: bool = True,
     ) -> Self:
         """Create a leverage request with explicit margin mode.
 
