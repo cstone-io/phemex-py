@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1 (2026-03-05)
+
+### Fixed
+
+- Fixed signed position size (`signed_size`) returning incorrect values in OneWay (Merged) position mode — now battle-tested against the live API
+- Fixed `BulkCancelOrderResponse` reference in integration tests (correct type is `CancelOrderResponse`)
+
+### Changed
+
+- Integration tests now use env vars (`INTEGRATION_TEST_SYMBOL`, `INTEGRATION_TEST_QTY`, `INTEGRATION_TEST_LMT_PRICE`) instead of hardcoded symbols/quantities
+- Added session-scoped cleanup fixture that cancels orders and closes positions before/after test runs
+
 ## 0.3.0 (2026-03-03)
 
 ### Breaking Changes

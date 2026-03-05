@@ -1,6 +1,6 @@
 [project]
 name = "phemex-py"
-version = "0.3.0"
+version = "0.3.1"
 description = "Typed, production-grade Python SDK for the Phemex crypto exchange API"
 readme = "README.md"
 license = { text = "MIT" }
