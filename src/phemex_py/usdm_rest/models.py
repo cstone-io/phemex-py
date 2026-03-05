@@ -728,6 +728,8 @@ class Position(PositionCore):
     @property
     def signed_size(self) -> PhemexDecimal:
         """Negative for Short positions, positive for Long."""
+        if self.pos_side == "Merged":
+            return -abs(self.size) if self.side == "Sell" else abs(self.size)
         if self.pos_side == "Short":
             return -abs(self.size)
         return abs(self.size)
@@ -753,6 +755,8 @@ class PositionWithPnL(PositionCore):
     @property
     def signed_size(self) -> PhemexDecimal:
         """Negative for Short positions, positive for Long."""
+        if self.pos_side == "Merged":
+            return -abs(self.size) if self.side == "Sell" else abs(self.size)
         if self.pos_side == "Short":
             return -abs(self.size)
         return abs(self.size)
