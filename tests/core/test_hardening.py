@@ -432,6 +432,51 @@ class TestSignedSize:
             result = abs(pos.size)
         assert result == PhemexDecimal("0")
 
+    def test_merged_long_positive(self):
+        class FakePosition:
+            pos_side = "Merged"
+            side = "Buy"
+            size = PhemexDecimal("5")
+
+        pos = FakePosition()
+        if pos.pos_side == "Merged":
+            result = -abs(pos.size) if pos.side == "Sell" else abs(pos.size)
+        elif pos.pos_side == "Short":
+            result = -abs(pos.size)
+        else:
+            result = abs(pos.size)
+        assert result == PhemexDecimal("5")
+
+    def test_merged_short_negative(self):
+        class FakePosition:
+            pos_side = "Merged"
+            side = "Sell"
+            size = PhemexDecimal("5")
+
+        pos = FakePosition()
+        if pos.pos_side == "Merged":
+            result = -abs(pos.size) if pos.side == "Sell" else abs(pos.size)
+        elif pos.pos_side == "Short":
+            result = -abs(pos.size)
+        else:
+            result = abs(pos.size)
+        assert result == PhemexDecimal("-5")
+
+    def test_merged_zero(self):
+        class FakePosition:
+            pos_side = "Merged"
+            side = "Buy"
+            size = PhemexDecimal("0")
+
+        pos = FakePosition()
+        if pos.pos_side == "Merged":
+            result = -abs(pos.size) if pos.side == "Sell" else abs(pos.size)
+        elif pos.pos_side == "Short":
+            result = -abs(pos.size)
+        else:
+            result = abs(pos.size)
+        assert result == PhemexDecimal("0")
+
 
 # -----------------------------------------------
 # Change 6: cancel_all rework
