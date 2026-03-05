@@ -10,15 +10,15 @@ pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
 @pytest.fixture
-def order_to_fail():
+def order_to_fail(symbol, qty, lmt_price):
     """A perp order that is guaranteed to fail/cancel (for testing)."""
-    return PlaceOrderRequest.builder("BTCUSDT").increase_long("0.01").limit("80000").tif("ImmediateOrCancel").build()
+    return PlaceOrderRequest.builder(symbol).increase_long(qty).limit(lmt_price).tif("ImmediateOrCancel").build()
 
 
 @pytest.fixture
-def order_to_live():
+def order_to_live(symbol, qty, lmt_price):
     """A perp order that will remain open (for testing)."""
-    return PlaceOrderRequest.builder("BTCUSDT").increase_long("0.01").limit("80000").build()
+    return PlaceOrderRequest.builder(symbol).increase_long(qty).limit(lmt_price).build()
 
 
 class TestAsyncPhemexUSDMOrderExecution:
@@ -38,14 +38,14 @@ class TestAsyncPhemexUSDMOrderExecution:
     async def test_place_order(self, async_client, order_to_fail):
         await self._place_or_skip(async_client, order_to_fail)
 
-    async def test_amend_and_cancel_order(self, async_client, order_to_live):
+    async def test_amend_and_cancel_order(self, async_client, order_to_live, symbol, lmt_price):
         # Step 1: Place a live order
         await self._place_or_skip(async_client, order_to_live)
         await asyncio.sleep(1)
 
         # Step 2: Fetch the open order to get its ID
         try:
-            orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+            orders = await async_client.usdm_rest.open_orders(symbol=symbol)
         except PhemexAPIError as e:
             if e.code == 10002:
                 pytest.skip("Order not found in open orders (likely filled immediately on testnet)")
@@ -58,7 +58,7 @@ class TestAsyncPhemexUSDMOrderExecution:
             symbol=order.symbol,
             pos_side=order_to_live.pos_side,
             order_id=order.order_id,
-            price="85000",
+            price=lmt_price,
         ))
         # amend_order may return None if the API doesn't echo data
         await async_client.usdm_rest.amend_order(amend_req)
@@ -71,13 +71,13 @@ class TestAsyncPhemexUSDMOrderExecution:
         # cancel_order may return None if the API doesn't echo data
         await async_client.usdm_rest.cancel_order(cancel_req)
 
-    async def test_bulk_cancel_orders(self, async_client, order_to_live):
+    async def test_bulk_cancel_orders(self, async_client, order_to_live, symbol):
         for i in range(2):
             await self._place_or_skip(async_client, order_to_live)
             await asyncio.sleep(1)
 
         try:
-            orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+            orders = await async_client.usdm_rest.open_orders(symbol=symbol)
         except PhemexAPIError as e:
             if e.code == 10002:
                 pytest.skip("No open orders found on testnet")
@@ -92,7 +92,7 @@ class TestAsyncPhemexUSDMOrderExecution:
         bulk_cancel_resp = await async_client.usdm_rest.bulk_cancel(bulk_cancel_req)
         assert isinstance(bulk_cancel_resp, list)
         for resp in bulk_cancel_resp:
-            assert isinstance(resp, BulkCancelOrderResponse)
+            assert isinstance(resp, CancelOrderResponse)
 
     async def test_cancel_all_orders(self, async_client, order_to_live):
         await self._place_or_skip(async_client, order_to_live)
@@ -103,9 +103,9 @@ class TestAsyncPhemexUSDMOrderExecution:
 
 
 class TestAsyncPhemexUSDMOrderInformation:
-    async def test_perp_get_open_orders(self, async_client):
+    async def test_perp_get_open_orders(self, async_client, symbol):
         try:
-            orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+            orders = await async_client.usdm_rest.open_orders(symbol=symbol)
         except PhemexAPIError as e:
             if e.code == 10002:
                 pytest.skip("No open orders on testnet")
@@ -115,17 +115,17 @@ class TestAsyncPhemexUSDMOrderInformation:
         for order in orders:
             assert isinstance(order, OpenOrderResponse)
 
-    async def test_get_closed_orders(self, async_client):
-        req = ClosedOrdersRequest.default(symbol="BTCUSDT")
+    async def test_get_closed_orders(self, async_client, symbol):
+        req = ClosedOrdersRequest.default(symbol=symbol)
         orders = await async_client.usdm_rest.closed_orders(req)
 
         assert isinstance(orders, list)
         for order in orders:
             assert isinstance(order, ClosedOrderResponse)
 
-    async def test_lookup_order(self, async_client):
+    async def test_lookup_order(self, async_client, symbol):
         try:
-            orders = await async_client.usdm_rest.open_orders(symbol="BTCUSDT")
+            orders = await async_client.usdm_rest.open_orders(symbol=symbol)
         except PhemexAPIError as e:
             if e.code == 10002:
                 pytest.skip("No open orders on testnet")
@@ -133,13 +133,13 @@ class TestAsyncPhemexUSDMOrderInformation:
         if not orders:
             pytest.skip("No open orders to look up")
         order_id = orders[0].order_id
-        looked_up = await async_client.usdm_rest.lookup_order(symbol="BTCUSDT", order_id=order_id)
+        looked_up = await async_client.usdm_rest.lookup_order(symbol=symbol, order_id=order_id)
         if looked_up is not None:
             assert isinstance(looked_up, OpenOrderResponse)
             assert looked_up.order_id == order_id
 
-    async def test_order_history(self, async_client):
-        orders = await async_client.usdm_rest.order_history(symbol="BTCUSDT")
+    async def test_order_history(self, async_client, symbol):
+        orders = await async_client.usdm_rest.order_history(symbol=symbol)
 
         assert isinstance(orders, list)
         for order in orders:
@@ -169,8 +169,8 @@ class TestAsyncPhemexUSDMPortfolio:
         for item in risk_units:
             assert isinstance(item, RiskUnitResponse)
 
-    async def test_closed_positions(self, async_client):
-        req = ClosedPositionRequest.default(symbol="BTCUSDT")
+    async def test_closed_positions(self, async_client, symbol):
+        req = ClosedPositionRequest.default(symbol=symbol)
         closed_positions = await async_client.usdm_rest.closed_positions(req)
 
         assert isinstance(closed_positions, list)
@@ -194,44 +194,44 @@ class TestAsyncPhemexUSDMOptions:
         except Exception as e:
             pytest.fail(f"{label} raised an unexpected exception: {e}")
 
-    async def test_perp_switch_pos_mode(self, async_client):
-        req = SwitchModeRequest(symbol="BTCUSDT", mode="Hedged")
+    async def test_perp_switch_pos_mode(self, async_client, symbol):
+        req = SwitchModeRequest(symbol=symbol, mode="Hedged")
         await self._run_or_skip(
             async_client.usdm_rest.switch_position_mode(req),
             "perp_switch_pos_mode",
         )
 
-    async def test_perp_set_leverage_oneway(self, async_client):
+    async def test_perp_set_leverage_oneway(self, async_client, symbol):
         try:
-            req = SwitchModeRequest(symbol="BTCUSDT", mode="OneWay")
+            req = SwitchModeRequest(symbol=symbol, mode="OneWay")
             await async_client.usdm_rest.switch_position_mode(req)
         except PhemexAPIError as e:
             if e.code in self._ACCEPTABLE_CODES:
                 pytest.skip(f"Cannot switch to OneWay on testnet: [{e.code}] {e.msg}")
             raise
 
-        req = SetLeverageRequest.model_validate(dict(symbol="BTCUSDT", one_way="10"))
+        req = SetLeverageRequest.model_validate(dict(symbol=symbol, one_way="10"))
         await self._run_or_skip(
             async_client.usdm_rest.set_leverage(req),
             "perp_set_leverage",
         )
 
         try:
-            req = SwitchModeRequest(symbol="BTCUSDT", mode="Hedged")
+            req = SwitchModeRequest(symbol=symbol, mode="Hedged")
             await async_client.usdm_rest.switch_position_mode(req)
         except PhemexAPIError:
             pass  # best-effort restore
 
-    async def test_perp_set_leverage_hedged(self, async_client):
-        req = SetLeverageRequest.model_validate(dict(symbol="BTCUSDT", long="5", short="7"))
+    async def test_perp_set_leverage_hedged(self, async_client, symbol):
+        req = SetLeverageRequest.model_validate(dict(symbol=symbol, long="5", short="7"))
         await self._run_or_skip(
             async_client.usdm_rest.set_leverage(req),
             "perp_set_leverage",
         )
 
-    async def test_assign_position_balance(self, async_client):
+    async def test_assign_position_balance(self, async_client, symbol):
         req = AssignPositionBalanceRequest.model_validate(dict(
-            symbol="BNBUSDT",
+            symbol=symbol,
             side="Long",
             amount="10",
         ))
@@ -242,23 +242,23 @@ class TestAsyncPhemexUSDMOptions:
 
 
 class TestAsyncPhemexUSDMTrades:
-    async def test_user_trades(self, async_client):
-        req = UserTradeRequest.default(symbol="BTCUSDT")
+    async def test_user_trades(self, async_client, symbol):
+        req = UserTradeRequest.default(symbol=symbol)
         trades = await async_client.usdm_rest.user_trades(req)
 
         assert isinstance(trades, list)
         for trade in trades:
             assert isinstance(trade, UserTrade)
 
-    async def test_trades(self, async_client):
-        trades = await async_client.usdm_rest.trades(symbol="BTCUSDT")
+    async def test_trades(self, async_client, symbol):
+        trades = await async_client.usdm_rest.trades(symbol=symbol)
         assert isinstance(trades, TradeResponse)
 
         for trade in trades.trades:
             assert isinstance(trade, Trade)
 
-    async def test_trade_history(self, async_client):
-        req = TradeHistoryRequest(symbol="BTCUSDT")
+    async def test_trade_history(self, async_client, symbol):
+        req = TradeHistoryRequest(symbol=symbol)
         trades = await async_client.usdm_rest.trade_history(req)
 
         assert isinstance(trades, list)
@@ -267,19 +267,19 @@ class TestAsyncPhemexUSDMTrades:
 
 
 class TestAsyncPhemexUSDMMarkets:
-    async def test_order_book(self, async_client):
-        data = await async_client.usdm_rest.order_book(symbol="BTCUSDT")
+    async def test_order_book(self, async_client, symbol):
+        data = await async_client.usdm_rest.order_book(symbol=symbol)
         assert isinstance(data, OrderBookResponse)
 
-    async def test_klines(self, async_client):
-        req = KlineRequest(symbol="BTCUSDT", resolution=60, limit=5)
+    async def test_klines(self, async_client, symbol):
+        req = KlineRequest(symbol=symbol, resolution=60, limit=5)
         data = await async_client.usdm_rest.klines(req)
         assert isinstance(data, list)
         for kline in data:
             assert isinstance(kline, Kline)
 
-    async def test_perp_get_ticker_24hr(self, async_client):
-        data = await async_client.usdm_rest.ticker(symbol="BTCUSDT")
+    async def test_perp_get_ticker_24hr(self, async_client, symbol):
+        data = await async_client.usdm_rest.ticker(symbol=symbol)
         assert isinstance(data, Ticker)
 
     async def test_tickers(self, async_client):
@@ -290,16 +290,16 @@ class TestAsyncPhemexUSDMMarkets:
 
 
 class TestAsyncPhemexUSDMFunding:
-    async def test_funding_fee(self, async_client):
-        req = FundingFeeRequest(symbol="BTCUSDT")
+    async def test_funding_fee(self, async_client, symbol):
+        req = FundingFeeRequest(symbol=symbol)
         data = await async_client.usdm_rest.funding_fee_history(req)
 
         assert isinstance(data, list)
         for fee in data:
             assert isinstance(fee, FundingFeeItem)
 
-    async def test_funding_rate(self, async_client):
-        req = FundingRateRequest(symbol="BTCUSDT")
+    async def test_funding_rate(self, async_client, symbol):
+        req = FundingRateRequest(symbol=symbol)
         data = await async_client.usdm_rest.funding_rates(req)
 
         assert isinstance(data, list)

@@ -17,25 +17,24 @@ from phemex_py.usdm_rest.models import (
     SwitchModeRequest,
 )
 
-SYMBOL = "BTCUSDT"
 _ACCEPTABLE = {11001, 11004, 11006, 11082, 20004, 21002}
 
 
 class TestMergedModeSignedSize:
     """Verify signed_size returns correct sign for OneWay (Merged) positions on testnet."""
 
-    def test_merged_short_signed_size_negative(self, client):
+    def test_merged_short_signed_size_negative(self, client, symbol, qty):
         """A short position in Merged mode must have negative signed_size."""
         # Cancel open orders so mode switch succeeds
         try:
-            client.usdm_rest.cancel_all(symbol=SYMBOL)
+            client.usdm_rest.cancel_all(symbol=symbol)
         except PhemexAPIError:
             pass
         time.sleep(0.5)
 
         # Switch to OneWay
         try:
-            client.usdm_rest.switch_position_mode(SwitchModeRequest.make(symbol=SYMBOL, mode="OneWay"))
+            client.usdm_rest.switch_position_mode(SwitchModeRequest.make(symbol=symbol, mode="OneWay"))
         except PhemexAPIError as e:
             if e.code in _ACCEPTABLE:
                 pytest.skip(f"Cannot switch to OneWay: [{e.code}] {e.msg}")
@@ -45,11 +44,11 @@ class TestMergedModeSignedSize:
         try:
             # Place a small short market order
             order = PlaceOrderRequest(
-                symbol=SYMBOL,
+                symbol=symbol,
                 side="Sell",
                 pos_side="Merged",
                 order_type="Market",
-                quantity="0.01",
+                quantity=qty,
                 time_in_force="ImmediateOrCancel",
             )
             try:
@@ -63,7 +62,7 @@ class TestMergedModeSignedSize:
             # Verify positions() signed_size
             pos_resp: PositionResponse = client.usdm_rest.positions()
             for pos in pos_resp.positions:
-                if pos.symbol == SYMBOL and pos.pos_side == "Merged" and pos.side == "Sell":
+                if pos.symbol == symbol and pos.pos_side == "Merged" and pos.side == "Sell":
                     assert pos.signed_size < 0, (
                         f"Expected negative signed_size for Merged short, got {pos.signed_size}"
                     )
@@ -74,7 +73,7 @@ class TestMergedModeSignedSize:
             # Verify positions_with_pnl() signed_size
             pnl_resp: PositionWithPnLResponse = client.usdm_rest.positions_with_pnl()
             for pos in pnl_resp.positions:
-                if pos.symbol == SYMBOL and pos.pos_side == "Merged" and pos.side == "Sell":
+                if pos.symbol == symbol and pos.pos_side == "Merged" and pos.side == "Sell":
                     assert pos.signed_size < 0, (
                         f"Expected negative signed_size for Merged short, got {pos.signed_size}"
                     )
@@ -86,11 +85,11 @@ class TestMergedModeSignedSize:
             # Cleanup: close position, switch back
             try:
                 close_order = PlaceOrderRequest(
-                    symbol=SYMBOL,
+                    symbol=symbol,
                     side="Buy",
                     pos_side="Merged",
                     order_type="Market",
-                    quantity="0.01",
+                    quantity=qty,
                     time_in_force="ImmediateOrCancel",
                     reduce_only=True,
                 )
@@ -100,6 +99,6 @@ class TestMergedModeSignedSize:
             time.sleep(0.5)
 
             try:
-                client.usdm_rest.switch_position_mode(SwitchModeRequest.make(symbol=SYMBOL, mode="Hedged"))
+                client.usdm_rest.switch_position_mode(SwitchModeRequest.make(symbol=symbol, mode="Hedged"))
             except PhemexAPIError:
                 pass

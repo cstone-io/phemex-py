@@ -7,15 +7,15 @@ from phemex_py.usdm_rest.models import *
 
 
 @pytest.fixture
-def order_to_fail():
+def order_to_fail(symbol, qty, lmt_price):
     """A perp order that is guaranteed to fail/cancel (for testing)."""
-    return PlaceOrderRequest.builder("BTCUSDT").increase_long("0.01").limit("80000").tif("ImmediateOrCancel").build()
+    return PlaceOrderRequest.builder(symbol).increase_long(qty).limit(lmt_price).tif("ImmediateOrCancel").build()
 
 
 @pytest.fixture
-def order_to_live():
+def order_to_live(symbol, qty, lmt_price):
     """A perp order that will remain open (for testing)."""
-    return PlaceOrderRequest.builder("BTCUSDT").increase_long("0.01").limit("80000").build()
+    return PlaceOrderRequest.builder(symbol).increase_long(qty).limit(lmt_price).build()
 
 
 class TestPhemexUSDMOrderExecution:
@@ -55,14 +55,14 @@ class TestPhemexUSDMOrderExecution:
             assert isinstance(resp, PutPlaceOrderResponse)
             assert not isinstance(resp, PlaceOrderResponse)
 
-    def test_amend_and_cancel_order(self, client, order_to_live):
+    def test_amend_and_cancel_order(self, client, order_to_live, symbol, lmt_price):
         # Step 1: Place a live order
         self._place_or_skip(client, order_to_live)
         time.sleep(1)
 
         # Step 2: Fetch the open order to get its ID
         try:
-            orders = client.usdm_rest.open_orders(symbol="BTCUSDT")
+            orders = client.usdm_rest.open_orders(symbol=symbol)
         except PhemexAPIError as e:
             if e.code == 10002:
                 pytest.skip("Order not found in open orders (likely filled immediately on testnet)")
@@ -75,7 +75,7 @@ class TestPhemexUSDMOrderExecution:
             symbol=order.symbol,
             pos_side=order_to_live.pos_side,
             order_id=order.order_id,
-            price="85000",
+            price=lmt_price,
         ))
         # amend_order may return None if the API doesn't echo data
         client.usdm_rest.amend_order(amend_req)
@@ -88,13 +88,13 @@ class TestPhemexUSDMOrderExecution:
         # cancel_order may return None if the API doesn't echo data
         client.usdm_rest.cancel_order(cancel_req)
 
-    def test_bulk_cancel_orders(self, client, order_to_live):
+    def test_bulk_cancel_orders(self, client, order_to_live, symbol):
         for i in range(2):
             self._place_or_skip(client, order_to_live)
             time.sleep(1)
 
         try:
-            orders = client.usdm_rest.open_orders(symbol="BTCUSDT")
+            orders = client.usdm_rest.open_orders(symbol=symbol)
         except PhemexAPIError as e:
             if e.code == 10002:
                 pytest.skip("No open orders found on testnet")
@@ -109,7 +109,7 @@ class TestPhemexUSDMOrderExecution:
         bulk_cancel_resp = client.usdm_rest.bulk_cancel(bulk_cancel_req)
         assert isinstance(bulk_cancel_resp, list)
         for resp in bulk_cancel_resp:
-            assert isinstance(resp, BulkCancelOrderResponse)
+            assert isinstance(resp, CancelOrderResponse)
 
     def test_cancel_all_orders(self, client, order_to_live):
         self._place_or_skip(client, order_to_live)
@@ -120,9 +120,9 @@ class TestPhemexUSDMOrderExecution:
 
 
 class TestPhemexUSDMOrderInformation:
-    def test_perp_get_open_orders(self, client):
+    def test_perp_get_open_orders(self, client, symbol):
         try:
-            orders = client.usdm_rest.open_orders(symbol="BTCUSDT")
+            orders = client.usdm_rest.open_orders(symbol=symbol)
         except PhemexAPIError as e:
             if e.code == 10002:
                 pytest.skip("No open orders on testnet")
@@ -132,17 +132,17 @@ class TestPhemexUSDMOrderInformation:
         for order in orders:
             assert isinstance(order, OpenOrderResponse)
 
-    def test_get_closed_orders(self, client):
-        req = ClosedOrdersRequest.default(symbol="BTCUSDT")
+    def test_get_closed_orders(self, client, symbol):
+        req = ClosedOrdersRequest.default(symbol=symbol)
         orders = client.usdm_rest.closed_orders(req)
 
         assert isinstance(orders, list)
         for order in orders:
             assert isinstance(order, ClosedOrderResponse)
 
-    def test_lookup_order(self, client):
+    def test_lookup_order(self, client, symbol):
         try:
-            orders = client.usdm_rest.open_orders(symbol="BTCUSDT")
+            orders = client.usdm_rest.open_orders(symbol=symbol)
         except PhemexAPIError as e:
             if e.code == 10002:
                 pytest.skip("No open orders on testnet")
@@ -150,14 +150,14 @@ class TestPhemexUSDMOrderInformation:
         if not orders:
             pytest.skip("No open orders to look up")
         order_id = orders[0].order_id
-        looked_up = client.usdm_rest.lookup_order(symbol="BTCUSDT", order_id=order_id)
+        looked_up = client.usdm_rest.lookup_order(symbol=symbol, order_id=order_id)
         # lookup_order may return None if the order was filled/cancelled between queries
         if looked_up is not None:
             assert isinstance(looked_up, OpenOrderResponse)
             assert looked_up.order_id == order_id
 
-    def test_order_history(self, client):
-        orders = client.usdm_rest.order_history(symbol="BTCUSDT")
+    def test_order_history(self, client, symbol):
+        orders = client.usdm_rest.order_history(symbol=symbol)
 
         assert isinstance(orders, list)
         for order in orders:
@@ -187,8 +187,8 @@ class TestPhemexUSDMPortfolio:
         for item in risk_units:
             assert isinstance(item, RiskUnitResponse)
 
-    def test_closed_positions(self, client):
-        req = ClosedPositionRequest.default(symbol="BTCUSDT")
+    def test_closed_positions(self, client, symbol):
+        req = ClosedPositionRequest.default(symbol=symbol)
         closed_positions = client.usdm_rest.closed_positions(req)
 
         assert isinstance(closed_positions, list)
@@ -212,44 +212,44 @@ class TestPhemexUSDMOptions:
         except Exception as e:
             pytest.fail(f"{label} raised an unexpected exception: {e}")
 
-    def test_perp_switch_pos_mode(self, client):
-        req = SwitchModeRequest(symbol="BTCUSDT", mode="Hedged")
+    def test_perp_switch_pos_mode(self, client, symbol):
+        req = SwitchModeRequest(symbol=symbol, mode="Hedged")
         self._run_or_skip(
             lambda: client.usdm_rest.switch_position_mode(req),
             "perp_switch_pos_mode",
         )
 
-    def test_perp_set_leverage_oneway(self, client):
+    def test_perp_set_leverage_oneway(self, client, symbol):
         try:
-            req = SwitchModeRequest(symbol="BTCUSDT", mode="OneWay")
+            req = SwitchModeRequest(symbol=symbol, mode="OneWay")
             client.usdm_rest.switch_position_mode(req)
         except PhemexAPIError as e:
             if e.code in self._ACCEPTABLE_CODES:
                 pytest.skip(f"Cannot switch to OneWay on testnet: [{e.code}] {e.msg}")
             raise
 
-        req = SetLeverageRequest.model_validate(dict(symbol="BTCUSDT", one_way="10"))
+        req = SetLeverageRequest.model_validate(dict(symbol=symbol, one_way="10"))
         self._run_or_skip(
             lambda: client.usdm_rest.set_leverage(req),
             "perp_set_leverage",
         )
 
         try:
-            req = SwitchModeRequest(symbol="BTCUSDT", mode="Hedged")
+            req = SwitchModeRequest(symbol=symbol, mode="Hedged")
             client.usdm_rest.switch_position_mode(req)
         except PhemexAPIError:
             pass  # best-effort restore
 
-    def test_perp_set_leverage_hedged(self, client):
-        req = SetLeverageRequest.model_validate(dict(symbol="BTCUSDT", long="5", short="7"))
+    def test_perp_set_leverage_hedged(self, client, symbol):
+        req = SetLeverageRequest.model_validate(dict(symbol=symbol, long="5", short="7"))
         self._run_or_skip(
             lambda: client.usdm_rest.set_leverage(req),
             "perp_set_leverage",
         )
 
-    def test_assign_position_balance(self, client):
+    def test_assign_position_balance(self, client, symbol):
         req = AssignPositionBalanceRequest.model_validate(dict(
-            symbol="BNBUSDT",
+            symbol=symbol,
             side="Long",
             amount="10",
         ))
@@ -260,23 +260,23 @@ class TestPhemexUSDMOptions:
 
 
 class TestPhemexUSDMTrades:
-    def test_user_trades(self, client):
-        req = UserTradeRequest.default(symbol="BTCUSDT")
+    def test_user_trades(self, client, symbol):
+        req = UserTradeRequest.default(symbol=symbol)
         trades = client.usdm_rest.user_trades(req)
 
         assert isinstance(trades, list)
         for trade in trades:
             assert isinstance(trade, UserTrade)
 
-    def test_trades(self, client):
-        trades = client.usdm_rest.trades(symbol="BTCUSDT")
+    def test_trades(self, client, symbol):
+        trades = client.usdm_rest.trades(symbol=symbol)
         assert isinstance(trades, TradeResponse)
 
         for trade in trades.trades:
             assert isinstance(trade, Trade)
 
-    def test_trade_history(self, client):
-        req = TradeHistoryRequest(symbol="BTCUSDT")
+    def test_trade_history(self, client, symbol):
+        req = TradeHistoryRequest(symbol=symbol)
         trades = client.usdm_rest.trade_history(req)
 
         assert isinstance(trades, list)
@@ -285,19 +285,19 @@ class TestPhemexUSDMTrades:
 
 
 class TestPhemexUSDMMarkets:
-    def test_order_book(self, client):
-        data = client.usdm_rest.order_book(symbol="BTCUSDT")
+    def test_order_book(self, client, symbol):
+        data = client.usdm_rest.order_book(symbol=symbol)
         assert isinstance(data, OrderBookResponse)
 
-    def test_klines(self, client):
-        req = KlineRequest(symbol="BTCUSDT", resolution=60, limit=5)
+    def test_klines(self, client, symbol):
+        req = KlineRequest(symbol=symbol, resolution=60, limit=5)
         data = client.usdm_rest.klines(req)
         assert isinstance(data, list)
         for kline in data:
             assert isinstance(kline, Kline)
 
-    def test_perp_get_ticker_24hr(self, client):
-        data = client.usdm_rest.ticker(symbol="BTCUSDT")
+    def test_perp_get_ticker_24hr(self, client, symbol):
+        data = client.usdm_rest.ticker(symbol=symbol)
         assert isinstance(data, Ticker)
 
     def test_tickers(self, client):
@@ -308,16 +308,16 @@ class TestPhemexUSDMMarkets:
 
 
 class TestPhemexUSDMFunding:
-    def test_funding_fee(self, client):
-        req = FundingFeeRequest(symbol="BTCUSDT")
+    def test_funding_fee(self, client, symbol):
+        req = FundingFeeRequest(symbol=symbol)
         data = client.usdm_rest.funding_fee_history(req)
 
         assert isinstance(data, list)
         for fee in data:
             assert isinstance(fee, FundingFeeItem)
 
-    def test_funding_rate(self, client):
-        req = FundingRateRequest(symbol="BTCUSDT")
+    def test_funding_rate(self, client, symbol):
+        req = FundingRateRequest(symbol=symbol)
         data = client.usdm_rest.funding_rates(req)
 
         assert isinstance(data, list)
